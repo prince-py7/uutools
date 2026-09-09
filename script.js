@@ -30,51 +30,34 @@ form.addEventListener("submit", async (event) => {
   preview.classList.add("hidden");
 
   try {
-    const url = IMAGE_API_URL.replace(/\/$/, "") + "/" + encodeURIComponent(uuid);
+  const url = IMAGE_API_URL.replace(/\/$/, "") + "/" + encodeURIComponent(uuid);
 
-image.onerror = () => {
+  if (objectUrl) {
+    URL.revokeObjectURL(objectUrl);
+    objectUrl = "";
+  }
+
+  image.onload = () => {
+    statusText.textContent = "";
+    download.href = url;
+    download.setAttribute("download", `profile-${uuid}.png`);
+    download.setAttribute("target", "_blank");
+    preview.classList.remove("hidden");
+    enterButton.disabled = false;
+  };
+
+  image.onerror = () => {
+    statusText.textContent = "Image not available";
+    preview.classList.add("hidden");
+    enterButton.disabled = false;
+  };
+
+  image.src = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+} catch (error) {
   statusText.textContent = "Image not available";
   preview.classList.add("hidden");
-};
-image.onload = () => {
-  statusText.textContent = "";
-  download.href = url;
-  download.download = `profile-${uuid}.png`;
-  preview.classList.remove("hidden");
-};
-image.src = url;
-    if (!response.ok) {
-      throw new Error("Image not available");
-    }
-
-    const contentType = response.headers.get("content-type") || "";
-    let blob;
-
-    if (contentType.includes("application/json")) {
-      const data = await response.json();
-      const imageUrl =
-        data.imageSrc || data.imageUrl || data.image_url || data.url || data.image;
-      if (!imageUrl) {
-        throw new Error("Image not available");
-      }
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error("Image not available");
-      }
-      blob = await imageResponse.blob();
-    } else {
-      blob = await response.blob();
-    }
-
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl);
-    }
-
-    objectUrl = URL.createObjectURL(blob);
-    image.onerror = () => {
-      statusText.textContent = "Image not available";
-      preview.classList.add("hidden");
-    };
+  enterButton.disabled = false;
+}
     image.src = objectUrl;
     download.href = objectUrl;
     download.download = `profile-${uuid}.png`;
