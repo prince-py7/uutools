@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UU-TOOLS</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>UU-TOOLS</header>
+
+    <main class="box">
+      <h1>UUID TO PROFILE FINDER</h1>
+
+      <form id="form">
+        <label for="uuid">UUID</label>
+        <input id="uuid" type="text" placeholder="Enter UUID" required />
+        <button type="submit" id="enter">Enter</button>
+      </form>
+
+      <p id="status" class="status"></p>
+
+      <div class="preview hidden" id="preview">
+        <img id="image" alt="Profile image" />
+        <a id="download" class="download" download="profile.png">Download</a>
+      </div>
+    </main>
+
+    <footer>MADE WITH ❤️ BY PRINCE</footer>
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
