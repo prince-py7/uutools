@@ -18,7 +18,9 @@ Example:
 const IMAGE_API_URL = "https://your-api.com/profile";
 ```
 
-Site UUID ko `?uuid=` ke saath bhejegi.
+Site UUID ko path me lagati hai:
+
+`https://api.uuonline.in/api/xyz/image/USER_UUID`
 
 ## GitHub Pages
 
