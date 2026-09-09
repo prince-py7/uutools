@@ -176,13 +176,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   const url =
-    IMAGE_API_URL.replace(/\/$/, "") +
-    "/" +
-    encodeURIComponent(uuid) +
-    const url =
-  IMAGE_API_URL.replace(/\/$/, "") +
-  "/" +
-  encodeURIComponent(uuid);
+  IMAGE_API_URL.replace(/\/$/, "") + "/" + encodeURIComponent(uuid);
 
   currentUuid = uuid;
   currentImageUrl = url;
