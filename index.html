@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UU-TOOLS</title>
+    <title>UU TOOL'S</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <header>UU-TOOLS</header>
+    <header>UU TOOL'S</header>
 
     <main class="box">
       <h1>UUID TO PROFILE FINDER</h1>
@@ -19,8 +19,10 @@
       </form>
 
       <div id="loading" class="loading hidden">
-        <div class="spinner"></div>
-        <p>Loading Image...</p>
+        <div class="loading-bar">
+          <div id="loadingBarFill" class="loading-bar-fill"></div>
+        </div>
+        <p id="loadingText">Loading Image 0%</p>
       </div>
 
       <p id="status" class="status"></p>
