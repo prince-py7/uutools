@@ -30,10 +30,8 @@ form.addEventListener("submit", async (event) => {
   preview.classList.add("hidden");
 
   try {
-    const url = new URL(IMAGE_API_URL);
-    url.searchParams.set("uuid", uuid);
-
-    const response = await fetch(url.toString());
+    const url = IMAGE_API_URL.replace(/\/$/, "") + "/" + encodeURIComponent(uuid);
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error("Image not available");
     }
