@@ -20,18 +20,29 @@ form.addEventListener("submit", async (event) => {
   }
 
   if (!IMAGE_API_URL || IMAGE_API_URL === "PASTE_YOUR_API_URL_HERE") {
-    statusText.textContent = "Image not available";
+    statusText.textContent = "Loading Image...";
     preview.classList.add("hidden");
     return;
   }
 
   enterButton.disabled = true;
-  statusText.textContent = "Image aa rahi hai...";
+  statusText.textContent = "Loading Image...";
   preview.classList.add("hidden");
 
   try {
     const url = IMAGE_API_URL.replace(/\/$/, "") + "/" + encodeURIComponent(uuid);
-    const response = await fetch(url);
+
+image.onerror = () => {
+  statusText.textContent = "Image not available";
+  preview.classList.add("hidden");
+};
+image.onload = () => {
+  statusText.textContent = "";
+  download.href = url;
+  download.download = `profile-${uuid}.png`;
+  preview.classList.remove("hidden");
+};
+image.src = url;
     if (!response.ok) {
       throw new Error("Image not available");
     }
