@@ -142,7 +142,7 @@ export function StudyFiltersBar({
   const subjects = catalog.subjects.filter((s) => s.class_id === classId);
 
   return (
-    <div className="sticky top-0 z-20 space-y-3 border-b border-[var(--line)] bg-[color-mix(in_srgb,#050507_88%,transparent)] px-1 py-3 backdrop-blur-xl">
+    <div className="sticky top-0 z-20 space-y-3 border-b border-[var(--line)] bg-black/90 px-3 py-3 backdrop-blur-md">
       <div className="flex flex-wrap items-center gap-5">
         <label className="check-row">
           <input
@@ -163,7 +163,7 @@ export function StudyFiltersBar({
       </div>
 
       {studyOnly && (
-        <div className="grid gap-2 rounded-2xl border border-[var(--line)] bg-[#0a0b10]/80 p-3 sm:grid-cols-2">
+        <div className="grid gap-2 rounded-lg border border-[var(--line)] bg-[#121212] p-3 sm:grid-cols-2">
           <label className="check-row sm:col-span-2">
             <input
               type="checkbox"

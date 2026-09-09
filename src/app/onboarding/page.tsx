@@ -51,7 +51,7 @@ export default function OnboardingPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="card w-full max-w-lg p-8">
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold">
+        <h1 className="text-2xl font-bold">
           Set up your campus profile
         </h1>
         <p className="mt-2 text-sm text-[var(--muted)]">

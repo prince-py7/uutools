@@ -1,24 +1,18 @@
 import type { Metadata } from "next";
-import { DM_Sans, Syne } from "next/font/google";
+import { Inter } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
-const display = Syne({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
-});
-
-const body = DM_Sans({
+const body = Inter({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "UNITIANS",
+  title: "Unitians",
   description:
-    "UNITIANS — college social hub for United University. Feed, study mode, and campus tools.",
+    "Unitians — college social hub for United University. Feed, study mode, and campus tools.",
 };
 
 export default function RootLayout({
@@ -28,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${display.variable} ${body.variable} antialiased`}>
+      <body className={`${body.variable} font-sans antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

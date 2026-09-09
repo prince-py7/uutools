@@ -64,7 +64,7 @@ export default function TimetablePage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl space-y-4 px-3 py-6 md:px-0">
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold">
+        <h1 className="text-2xl font-bold">
           Timetable
         </h1>
         <p className="text-sm text-[var(--muted)]">

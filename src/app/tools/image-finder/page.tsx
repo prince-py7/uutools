@@ -138,7 +138,7 @@ export default function ImageFinderPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-md px-3 py-6 md:px-0">
-        <h1 className="mb-1 text-center font-[family-name:var(--font-display)] text-2xl font-bold">
+        <h1 className="mb-1 text-center text-2xl font-bold">
           UUID to Profile Finder
         </h1>
         <p className="mb-6 text-center text-sm text-[var(--muted)]">

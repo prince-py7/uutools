@@ -58,7 +58,7 @@ export default function ProfilePage() {
             <Avatar name={profile.display_name} url={profile.avatar_url} size={72} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-[family-name:var(--font-display)] text-xl font-bold">
+                <h1 className="text-xl font-bold">
                   {profile.display_name}
                 </h1>
                 <BadgeList badges={badges} />

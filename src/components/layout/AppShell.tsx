@@ -33,6 +33,9 @@ const tools = [
   { href: "/tools/favourites", label: "Favourites", icon: Star },
 ];
 
+const COLLAPSED = 56;
+const EXPANDED = 180;
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ShellProvider>
@@ -44,43 +47,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, demoMode } = useAuth();
-  const { composerOpen, openComposer, closeComposer, requestsOpen, openRequests, closeRequests } =
-    useShell();
+  const { user, logout } = useAuth();
+  const {
+    composerOpen,
+    openComposer,
+    closeComposer,
+    requestsOpen,
+    openRequests,
+    closeRequests,
+  } = useShell();
   const [railOpen, setRailOpen] = useState(false);
   const [toolsHover, setToolsHover] = useState(false);
 
   useEffect(() => {
     closeComposer();
     closeRequests();
-    // Only reset overlays on navigation — keep close* callbacks out of deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const profileHref = user ? `/profile/${user.username}` : "/login";
+  const railW = railOpen ? EXPANDED : COLLAPSED;
 
   return (
-    <div className="relative mx-auto flex min-h-screen max-w-6xl">
-      {/* Left icon rail */}
+    <div className="min-h-screen bg-black text-[var(--text)]">
       <aside
-        className={`sticky top-0 z-30 hidden h-screen shrink-0 flex-col border-r border-[var(--line)] bg-[color-mix(in_srgb,#07080c_92%,transparent)] backdrop-blur-xl transition-[width] duration-200 md:flex ${
-          railOpen ? "w-[200px]" : "w-[72px]"
-        }`}
+        style={{ width: railW }}
+        className="fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-[var(--line)] bg-black transition-[width] duration-150 ease-out md:flex"
       >
-        <div className="flex items-center justify-center px-2 py-4">
-          <Link href="/home" className="relative block" title="UNITIANS">
+        <div className="flex h-14 items-center justify-center">
+          <Link href="/home" title="Unitians">
             <Image
               src="/brand/unitians-logo.png"
-              alt="UNITIANS"
-              width={railOpen ? 84 : 44}
-              height={railOpen ? 84 : 44}
-              className="object-contain drop-shadow-[0_0_18px_rgba(77,232,255,0.35)]"
+              alt="Unitians"
+              width={26}
+              height={26}
+              className="object-contain"
               priority
             />
           </Link>
         </div>
 
-        <nav className="flex flex-1 flex-col items-stretch gap-1 px-2">
+        <nav className="flex flex-1 flex-col gap-0.5 px-1">
           <RailLink
             href="/search"
             icon={Search}
@@ -99,32 +106,30 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           )}
 
           <div
-            className="relative mt-3"
+            className="relative mt-1"
             onMouseEnter={() => setToolsHover(true)}
             onMouseLeave={() => setToolsHover(false)}
           >
             <div
-              className={`icon-btn mx-auto ${
-                pathname.startsWith("/tools") ? "active" : ""
-              } ${railOpen ? "!w-full !justify-start gap-3 !px-3" : ""}`}
               title="Tools"
+              className={`icon-btn mx-auto ${pathname.startsWith("/tools") ? "active" : ""} ${
+                railOpen ? "!w-full !justify-start gap-3 !px-3" : ""
+              }`}
             >
-              <Wrench size={20} />
-              {railOpen && <span className="text-sm font-medium">Tools</span>}
+              <Wrench size={20} strokeWidth={1.75} />
+              {railOpen && <span className="text-sm">Tools</span>}
             </div>
 
             {(toolsHover || railOpen) && (
               <div
-                className={`${
+                className={
                   railOpen
-                    ? "mt-1 space-y-1"
-                    : "absolute left-[calc(100%+10px)] top-0 z-40 min-w-[200px] rounded-2xl border border-[var(--line)] bg-[#0a0b10]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl"
-                }`}
+                    ? "mt-0.5 space-y-0.5"
+                    : "absolute top-0 left-[calc(100%+6px)] z-40 w-44 rounded-lg border border-[var(--line)] bg-[#121212] p-1 shadow-xl"
+                }
               >
                 {!railOpen && (
-                  <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                    Tools
-                  </p>
+                  <p className="px-2 py-1 text-[11px] text-[var(--muted)]">Tools</p>
                 )}
                 {tools.map((t) => {
                   const Icon = t.icon;
@@ -133,13 +138,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                     <Link
                       key={t.href}
                       href={t.href}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+                      className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-sm ${
                         active
-                          ? "bg-[rgba(77,232,255,0.1)] text-[var(--accent)]"
-                          : "text-[var(--muted)] hover:bg-white/[0.03] hover:text-[var(--text)]"
+                          ? "bg-[#1a1a1a] text-white"
+                          : "text-[var(--muted)] hover:bg-[#1a1a1a] hover:text-white"
                       }`}
                     >
-                      <Icon size={18} />
+                      <Icon size={17} strokeWidth={1.75} />
                       {t.label}
                     </Link>
                   );
@@ -149,22 +154,17 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        <div className="mt-auto space-y-2 border-t border-[var(--line)] p-2">
-          {demoMode && railOpen && (
-            <p className="rounded-xl bg-[rgba(77,232,255,0.08)] px-2 py-2 text-[10px] leading-relaxed text-[var(--accent)]">
-              Demo · <b>aarav</b> / password
-            </p>
-          )}
+        <div className="border-t border-[var(--line)] p-1">
           {user && (
             <button
-              className={`icon-btn mx-auto ${railOpen ? "!w-full !justify-start gap-3 !px-3" : ""}`}
               title="Log out"
+              className={`icon-btn mx-auto ${railOpen ? "!w-full !justify-start gap-3 !px-3" : ""}`}
               onClick={async () => {
                 await logout();
                 router.push("/login");
               }}
             >
-              <LogOut size={18} />
+              <LogOut size={18} strokeWidth={1.75} />
               {railOpen && <span className="text-sm">Log out</span>}
             </button>
           )}
@@ -172,49 +172,45 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
         <button
           type="button"
-          aria-label={railOpen ? "Collapse sidebar" : "Expand sidebar"}
+          aria-label={railOpen ? "Collapse" : "Expand"}
           onClick={() => setRailOpen((v) => !v)}
-          className="absolute top-1/2 -right-3 z-40 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full border border-[var(--line-strong)] bg-[#0c0e14] text-[var(--muted)] shadow-lg hover:text-[var(--accent)]"
+          className="absolute top-1/2 -right-3 z-40 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-[var(--line)] bg-[#121212] text-[var(--muted)] hover:text-white"
         >
-          {railOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+          {railOpen ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}
         </button>
       </aside>
 
-      <main className="min-w-0 flex-1 pb-24">{children}</main>
+      <div
+        className="shell-main transition-[padding-left] duration-150 ease-out"
+        style={{ ["--rail-w" as string]: `${railW}px` }}
+      >
+        <div className="mx-auto w-full max-w-[630px]">{children}</div>
+      </div>
 
-      {/* Instagram-style footer */}
-      <nav className="footer-nav fixed inset-x-0 bottom-0 z-40">
-        <div className="mx-auto grid max-w-6xl grid-cols-4 items-center px-2 py-2 md:px-6">
-          <FooterItem
-            href="/home"
-            icon={Home}
-            label="Home"
-            active={pathname === "/home"}
-          />
+      <nav className="footer-nav fixed inset-x-0 bottom-0 z-40 h-12">
+        <div className="mx-auto grid h-full max-w-[630px] grid-cols-4">
+          <FooterItem href="/home" icon={Home} active={pathname === "/home"} />
           <button
             type="button"
-            className={`flex flex-col items-center gap-1 py-1 text-[10px] ${
-              requestsOpen ? "text-[var(--accent)]" : "text-[var(--muted)]"
-            }`}
+            aria-label="Friend requests"
             onClick={openRequests}
+            className={`flex items-center justify-center ${
+              requestsOpen ? "text-white" : "text-[var(--text)]"
+            }`}
           >
-            <UserPlus size={22} />
-            Requests
+            <UserPlus size={24} strokeWidth={1.75} />
           </button>
           <button
             type="button"
-            className="flex flex-col items-center gap-1 py-1 text-[10px] text-[var(--muted)]"
+            aria-label="Create post"
             onClick={openComposer}
+            className="flex items-center justify-center text-[var(--text)]"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-xl border border-[rgba(77,232,255,0.35)] bg-[linear-gradient(135deg,rgba(77,232,255,0.18),rgba(255,79,216,0.12))] text-[var(--accent)] shadow-[0_0_20px_rgba(77,232,255,0.2)]">
-              <PlusSquare size={22} />
-            </span>
-            Post
+            <PlusSquare size={24} strokeWidth={1.75} />
           </button>
           <FooterItem
             href={profileHref}
             icon={UserRound}
-            label="Profile"
             active={pathname.startsWith("/profile")}
             avatar={
               user ? (
@@ -228,13 +224,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       {composerOpen && (
         <div className="modal-backdrop" onClick={closeComposer}>
           <div
-            className="card w-full max-w-lg rounded-b-none sm:rounded-2xl"
+            className="card w-full max-w-lg overflow-hidden rounded-t-xl sm:rounded-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <h2 className="font-[family-name:var(--font-display)] text-lg font-bold">
-                Create post
-              </h2>
+              <h2 className="text-[15px] font-semibold">Create post</h2>
               <button className="icon-btn" onClick={closeComposer} aria-label="Close">
                 <X size={18} />
               </button>
@@ -254,22 +248,20 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       {requestsOpen && (
         <div className="modal-backdrop" onClick={closeRequests}>
           <div
-            className="card w-full max-w-md rounded-b-none sm:rounded-2xl"
+            className="card w-full max-w-md overflow-hidden rounded-t-xl sm:rounded-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <h2 className="font-[family-name:var(--font-display)] text-lg font-bold">
-                Friend requests
-              </h2>
+              <h2 className="text-[15px] font-semibold">Friend requests</h2>
               <button className="icon-btn" onClick={closeRequests} aria-label="Close">
                 <X size={18} />
               </button>
             </div>
-            <div className="space-y-3 p-5 text-sm text-[var(--muted)]">
+            <div className="space-y-2 p-5 text-sm text-[var(--muted)]">
               <p>No requests yet.</p>
               <p className="text-xs leading-relaxed">
-                Friend requests & chat ship in Phase 2. This button is ready — incoming
-                requests will show up here.
+                Friend requests & chat ship in Phase 2. This button is ready for incoming
+                requests.
               </p>
             </div>
           </div>
@@ -287,7 +279,7 @@ function RailLink({
   expanded,
 }: {
   href: string;
-  icon: React.ComponentType<{ size?: number }>;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   label: string;
   active: boolean;
   expanded: boolean;
@@ -300,8 +292,8 @@ function RailLink({
         expanded ? "!w-full !justify-start gap-3 !px-3" : ""
       }`}
     >
-      <Icon size={20} />
-      {expanded && <span className="text-sm font-medium">{label}</span>}
+      <Icon size={20} strokeWidth={1.75} />
+      {expanded && <span className="text-sm">{label}</span>}
     </Link>
   );
 }
@@ -309,25 +301,20 @@ function RailLink({
 function FooterItem({
   href,
   icon: Icon,
-  label,
   active,
   avatar,
 }: {
   href: string;
-  icon: React.ComponentType<{ size?: number }>;
-  label: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   active: boolean;
   avatar?: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
-      className={`flex flex-col items-center gap-1 py-1 text-[10px] ${
-        active ? "text-[var(--accent)]" : "text-[var(--muted)]"
-      }`}
+      className={`flex items-center justify-center ${active ? "text-white" : "text-[var(--text)]"}`}
     >
-      {avatar ?? <Icon size={22} />}
-      {label}
+      {avatar ?? <Icon size={24} strokeWidth={active ? 2.25 : 1.75} />}
     </Link>
   );
 }

@@ -46,7 +46,7 @@ export default function EditProfilePage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-xl px-3 py-4 md:px-0">
-        <h1 className="mb-4 font-[family-name:var(--font-display)] text-2xl font-bold">
+        <h1 className="mb-4 text-2xl font-bold">
           Edit profile
         </h1>
         <form className="card space-y-4 p-5" onSubmit={onSubmit}>

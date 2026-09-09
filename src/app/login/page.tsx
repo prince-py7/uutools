@@ -28,70 +28,71 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="card w-full max-w-md p-8 shadow-[0_0_80px_rgba(77,232,255,0.08)]">
-        <div className="mb-8 text-center">
-          <Image
-            src="/brand/unitians-logo.png"
-            alt="UNITIANS"
-            width={96}
-            height={96}
-            className="mx-auto object-contain drop-shadow-[0_0_28px_rgba(77,232,255,0.45)]"
-            priority
-          />
-          <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-[0.12em]">
-            UNITIANS
-          </h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">Sign in to your campus feed</p>
-        </div>
+    <div className="flex min-h-screen items-center justify-center bg-black px-4 py-10">
+      <div className="w-full max-w-[350px]">
+        <div className="card px-8 py-10">
+          <div className="mb-8 text-center">
+            <Image
+              src="/brand/unitians-logo.png"
+              alt="Unitians"
+              width={64}
+              height={64}
+              className="mx-auto object-contain"
+              priority
+            />
+            <h1 className="mt-5 text-[22px] font-semibold tracking-tight text-white">
+              Unitians
+            </h1>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Sign in to your campus feed
+            </p>
+          </div>
 
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div>
-            <label className="mb-1.5 block text-sm text-[var(--muted)]">Username</label>
+          <form className="space-y-2" onSubmit={onSubmit}>
             <input
-              className="input"
+              className="input bg-[#121212]"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="username"
+              placeholder="Username"
               required
               autoComplete="username"
             />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm text-[var(--muted)]">Password</label>
             <input
-              className="input"
+              className="input bg-[#121212]"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="Password"
               required
               autoComplete="current-password"
             />
-          </div>
-          {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-          <button className="btn btn-primary w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Log in"}
-          </button>
-        </form>
+            {error && <p className="pt-1 text-sm text-[var(--danger)]">{error}</p>}
+            <button
+              className="btn btn-primary mt-2 w-full"
+              disabled={loading || !username || !password}
+            >
+              {loading ? "Signing in…" : "Log in"}
+            </button>
+          </form>
 
-        {demoMode && (
-          <div className="mt-4 rounded-xl border border-[var(--line)] bg-[#08090e] p-3 text-xs text-[var(--muted)]">
-            <p className="mb-1 font-semibold text-[var(--text)]">Demo accounts</p>
-            <p>aarav / password — student</p>
-            <p>riya_cr / password — CR</p>
-            <p>admin / admin123 — developer</p>
-          </div>
-        )}
+          {demoMode && (
+            <div className="mt-5 border-t border-[var(--line)] pt-4 text-xs leading-relaxed text-[var(--muted)]">
+              <p className="mb-1 font-medium text-[var(--text)]">Demo</p>
+              <p>aarav / password</p>
+              <p>riya_cr / password</p>
+              <p>admin / admin123</p>
+            </div>
+          )}
 
-        {!demoMode && <GoogleButton />}
+          {!demoMode && <GoogleButton />}
+        </div>
 
-        <p className="mt-6 text-center text-sm text-[var(--muted)]">
-          New here?{" "}
+        <div className="card mt-3 px-8 py-5 text-center text-sm text-[var(--muted)]">
+          Don&apos;t have an account?{" "}
           <Link href="/signup" className="font-semibold text-[var(--accent)]">
-            Create account
+            Sign up
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

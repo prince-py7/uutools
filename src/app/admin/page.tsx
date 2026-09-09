@@ -125,7 +125,7 @@ export default function AdminPage() {
     <AppShell>
       <div className="mx-auto max-w-3xl space-y-6 px-3 py-4 md:px-0">
         <header>
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold">
+          <h1 className="text-2xl font-bold">
             Developer portal
           </h1>
           <p className="text-sm text-[var(--muted)]">
