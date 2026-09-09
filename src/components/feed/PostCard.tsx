@@ -126,7 +126,7 @@ export function PostCard({ post }: { post: Post }) {
             const url = `${window.location.origin}/home?post=${post.id}`;
             if (navigator.share) {
               try {
-                await navigator.share({ title: "UU Community", url });
+                await navigator.share({ title: "UNITIANS", url });
                 return;
               } catch {
                 /* fall through */

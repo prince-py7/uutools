@@ -92,7 +92,7 @@ function seed(): DemoState {
         id: adminId,
         username: "admin",
         display_name: "Prince",
-        bio: "Building UU Community",
+        bio: "Building UNITIANS",
         avatar_url: null,
         college_id: collegeId,
         class_id: bcaId,

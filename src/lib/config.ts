@@ -5,7 +5,7 @@ export function isSupabaseConfigured() {
   );
 }
 
-export const APP_NAME = "UU Community";
+export const APP_NAME = "UNITIANS";
 export const DEFAULT_POPULAR_THRESHOLD = 10;
 export const IMAGE_FINDER_API =
   process.env.NEXT_PUBLIC_IMAGE_API_URL ||

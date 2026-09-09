@@ -1,12 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 
 export default function SignupPage() {
-  const { signup, demoMode } = useAuth();
+  const { signup } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -35,12 +36,18 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="card w-full max-w-md p-8">
         <div className="mb-8 text-center">
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold">
-            Join UU Community
+          <Image
+            src="/brand/unitians-logo.png"
+            alt="UNITIANS"
+            width={80}
+            height={80}
+            className="mx-auto object-contain drop-shadow-[0_0_24px_rgba(77,232,255,0.4)]"
+            priority
+          />
+          <h1 className="mt-3 font-[family-name:var(--font-display)] text-2xl font-extrabold tracking-[0.1em]">
+            Join UNITIANS
           </h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            Username + password{demoMode ? "" : " or Google later"}
-          </p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Username + password</p>
         </div>
         <form className="space-y-4" onSubmit={onSubmit}>
           <div>

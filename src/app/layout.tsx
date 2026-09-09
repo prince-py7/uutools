@@ -16,9 +16,9 @@ const body = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "UU Community",
+  title: "UNITIANS",
   description:
-    "College-friendly social hub for United University — feed, study mode, and campus tools.",
+    "UNITIANS — college social hub for United University. Feed, study mode, and campus tools.",
 };
 
 export default function RootLayout({

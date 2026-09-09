@@ -142,7 +142,7 @@ export default function ImageFinderPage() {
           UUID to Profile Finder
         </h1>
         <p className="mb-6 text-center text-sm text-[var(--muted)]">
-          Campus tool from UU Tools
+          Campus tool · UNITIANS
         </p>
 
         <form className="card space-y-3 p-5" onSubmit={onSubmit}>

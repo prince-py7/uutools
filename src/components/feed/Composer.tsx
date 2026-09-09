@@ -5,7 +5,7 @@ import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { demoCreatePost, getDemoState, saveDemoState } from "@/lib/demo-store";
 import type { PostKind, StudyType } from "@/lib/types";
 
-export function Composer() {
+export function Composer({ onPosted }: { onPosted?: () => void }) {
   const { user } = useAuth();
   const catalog = useDemoCatalog();
   const [caption, setCaption] = useState("");
@@ -45,17 +45,19 @@ export function Composer() {
       is_official_verified: kind === "study" && isOfficial,
     });
     setCaption("");
+    onPosted?.();
   }
 
   return (
-    <form className="card p-4" onSubmit={submit}>
+    <form className="space-y-3" onSubmit={submit}>
       <textarea
-        className="input min-h-[88px] resize-y py-3"
+        className="input min-h-[110px] resize-y py-3"
         placeholder="Share with your campus…"
         value={caption}
         onChange={(e) => setCaption(e.target.value)}
+        autoFocus
       />
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <select
           className="input w-auto"
           value={kind}
@@ -92,7 +94,7 @@ export function Composer() {
           </>
         )}
         <button className="btn btn-primary ml-auto" type="submit">
-          Post
+          Share
         </button>
       </div>
     </form>
@@ -132,7 +134,6 @@ export function StudyFiltersBar({
 }) {
   const catalog = useDemoCatalog();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
 
   const classes = catalog.classes.filter(
     (c) => c.college_id === (user?.college_id || catalog.colleges[0]?.id)
@@ -141,37 +142,35 @@ export function StudyFiltersBar({
   const subjects = catalog.subjects.filter((s) => s.class_id === classId);
 
   return (
-    <div className="card sticky top-0 z-20 space-y-3 p-3 backdrop-blur md:top-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Toggle
-          label="Study Only"
-          active={studyOnly}
-          onClick={() => {
-            setStudyOnly(!studyOnly);
-            if (!studyOnly) setOpen(true);
-          }}
-        />
-        <Toggle
-          label="Class Only"
-          active={classOnly}
-          onClick={() => setClassOnly(!classOnly)}
-        />
-        {studyOnly && (
-          <button className="btn btn-ghost h-9 text-sm" onClick={() => setOpen((v) => !v)}>
-            Filters {open ? "▴" : "▾"}
-          </button>
-        )}
+    <div className="sticky top-0 z-20 space-y-3 border-b border-[var(--line)] bg-[color-mix(in_srgb,#050507_88%,transparent)] px-1 py-3 backdrop-blur-xl">
+      <div className="flex flex-wrap items-center gap-5">
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={studyOnly}
+            onChange={(e) => setStudyOnly(e.target.checked)}
+          />
+          Study Only
+        </label>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={classOnly}
+            onChange={(e) => setClassOnly(e.target.checked)}
+          />
+          Class Only
+        </label>
       </div>
 
-      {studyOnly && open && (
-        <div className="grid gap-2 rounded-xl border border-[var(--line)] bg-[var(--bg-elevated)] p-3 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+      {studyOnly && (
+        <div className="grid gap-2 rounded-2xl border border-[var(--line)] bg-[#0a0b10]/80 p-3 sm:grid-cols-2">
+          <label className="check-row sm:col-span-2">
             <input
               type="checkbox"
               checked={verifiedOnly}
               onChange={(e) => setVerifiedOnly(e.target.checked)}
             />
-            Verified only{" "}
+            Verified only
             <span className="text-xs text-[var(--muted)]">(default on)</span>
           </label>
           <select
@@ -233,31 +232,6 @@ export function StudyFiltersBar({
   );
 }
 
-function Toggle({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`h-9 rounded-full px-4 text-sm font-semibold transition ${
-        active
-          ? "bg-[var(--accent)] text-[#1a1200]"
-          : "border border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-/** unused import guard helper for admin threshold edits from composer file - keep catalog writable */
 export function setPopularThreshold(value: number) {
   const state = getDemoState();
   state.popularThreshold = value;

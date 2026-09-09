@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -28,14 +29,20 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="card w-full max-w-md p-8 shadow-[0_20px_80px_rgba(0,0,0,0.35)]">
+      <div className="card w-full max-w-md p-8 shadow-[0_0_80px_rgba(77,232,255,0.08)]">
         <div className="mb-8 text-center">
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-tight">
-            UU <span className="text-[var(--accent)]">Community</span>
+          <Image
+            src="/brand/unitians-logo.png"
+            alt="UNITIANS"
+            width={96}
+            height={96}
+            className="mx-auto object-contain drop-shadow-[0_0_28px_rgba(77,232,255,0.45)]"
+            priority
+          />
+          <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-[0.12em]">
+            UNITIANS
           </h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            Sign in to your campus feed
-          </p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Sign in to your campus feed</p>
         </div>
 
         <form className="space-y-4" onSubmit={onSubmit}>
@@ -69,7 +76,7 @@ export default function LoginPage() {
         </form>
 
         {demoMode && (
-          <div className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--bg-elevated)] p-3 text-xs text-[var(--muted)]">
+          <div className="mt-4 rounded-xl border border-[var(--line)] bg-[#08090e] p-3 text-xs text-[var(--muted)]">
             <p className="mb-1 font-semibold text-[var(--text)]">Demo accounts</p>
             <p>aarav / password — student</p>
             <p>riya_cr / password — CR</p>
@@ -77,9 +84,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {!demoMode && (
-          <GoogleButton />
-        )}
+        {!demoMode && <GoogleButton />}
 
         <p className="mt-6 text-center text-sm text-[var(--muted)]">
           New here?{" "}

@@ -17,7 +17,7 @@ export default function RootPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center text-[var(--muted)]">
-      Loading UU Community…
+      Loading UNITIANS…
     </div>
   );
 }

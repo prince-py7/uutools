@@ -1,20 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0c0f14;
-  --bg-elevated: #141a22;
-  --bg-card: #181f29;
-  --line: #2a3444;
-  --text: #f2f5f8;
-  --muted: #9aa8b8;
-  --accent: #f0b429;
-  --accent-2: #3dd6c6;
-  --danger: #ff6b6b;
-  --verified: #5eead4;
-  --popular: #34d399;
-  --cr: #60a5fa;
-  --professor: #c4b5fd;
-  --developer: #fbbf24;
+  /* Leather-black premium base */
+  --bg: #050507;
+  --bg-elevated: #0a0b0f;
+  --bg-card: #0e1016;
+  --bg-soft: #12151d;
+  --line: #1c2030;
+  --line-strong: #2a3148;
+  --text: #f4f6fb;
+  --muted: #8b93a7;
+  /* Logo-inspired cyan → magenta accents */
+  --accent: #4de8ff;
+  --accent-hot: #ff4fd8;
+  --accent-warm: #ffe566;
+  --accent-2: #7aa2ff;
+  --glow: rgba(77, 232, 255, 0.22);
+  --glow-pink: rgba(255, 79, 216, 0.18);
+  --danger: #ff6b8a;
+  --verified: #5ef0d8;
+  --popular: #3dffb0;
+  --cr: #6eb6ff;
+  --professor: #c9b6ff;
+  --developer: #ffe066;
 }
 
 @theme inline {
@@ -42,10 +50,13 @@ body {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(240, 180, 41, 0.12), transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, rgba(61, 214, 198, 0.1), transparent 50%),
-    var(--bg);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(900px 520px at 12% -8%, rgba(77, 232, 255, 0.14), transparent 55%),
+    radial-gradient(700px 420px at 92% 8%, rgba(255, 79, 216, 0.1), transparent 50%),
+    radial-gradient(600px 380px at 50% 100%, rgba(122, 162, 255, 0.08), transparent 55%),
+    linear-gradient(180deg, #07080c 0%, #050507 40%, #040406 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-body), system-ui, sans-serif;
 }
@@ -63,9 +74,14 @@ select {
 }
 
 .card {
-  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    color-mix(in srgb, var(--bg-card) 94%, #000);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 18px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 18px 50px rgba(0, 0, 0, 0.45);
 }
 
 .btn {
@@ -79,7 +95,8 @@ select {
   border: 1px solid transparent;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .btn:active {
@@ -87,22 +104,24 @@ select {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: #1a1200;
+  background: linear-gradient(135deg, #4de8ff 0%, #7aa2ff 45%, #ff4fd8 100%);
+  color: #050507;
+  box-shadow: 0 0 24px rgba(77, 232, 255, 0.25);
 }
 
 .btn-primary:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.06);
 }
 
 .btn-ghost {
   background: transparent;
-  border-color: var(--line);
+  border-color: var(--line-strong);
   color: var(--text);
 }
 
 .btn-ghost:hover {
-  background: var(--bg-elevated);
+  background: var(--bg-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 
 .input {
@@ -111,13 +130,13 @@ select {
   padding: 0 0.9rem;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: var(--bg-elevated);
+  background: #08090e;
   color: var(--text);
 }
 
 .input:focus {
-  outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
-  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
 
 .badge {
@@ -133,33 +152,120 @@ select {
 }
 
 .badge-developer {
-  background: rgba(251, 191, 36, 0.15);
+  background: rgba(255, 224, 102, 0.12);
   color: var(--developer);
-  border-color: rgba(251, 191, 36, 0.35);
+  border-color: rgba(255, 224, 102, 0.35);
 }
 
 .badge-cr {
-  background: rgba(96, 165, 250, 0.15);
+  background: rgba(110, 182, 255, 0.12);
   color: var(--cr);
-  border-color: rgba(96, 165, 250, 0.35);
+  border-color: rgba(110, 182, 255, 0.35);
 }
 
 .badge-professor {
-  background: rgba(196, 181, 253, 0.15);
+  background: rgba(201, 182, 255, 0.12);
   color: var(--professor);
-  border-color: rgba(196, 181, 253, 0.35);
+  border-color: rgba(201, 182, 255, 0.35);
 }
 
 .badge-verified {
-  background: rgba(94, 234, 212, 0.12);
+  background: rgba(94, 240, 216, 0.1);
   color: var(--verified);
-  border-color: rgba(94, 234, 212, 0.3);
+  border-color: rgba(94, 240, 216, 0.3);
 }
 
 .badge-unitians_popular {
-  background: rgba(52, 211, 153, 0.15);
+  background: rgba(61, 255, 176, 0.12);
   color: var(--popular);
-  border-color: rgba(52, 211, 153, 0.4);
+  border-color: rgba(61, 255, 176, 0.4);
+}
+
+.check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.check-row input {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  background: #08090e;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+.check-row input:checked {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 25%, #08090e);
+}
+
+.check-row input:checked::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--glow);
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--line);
+}
+
+.icon-btn.active {
+  color: var(--accent);
+  background: rgba(77, 232, 255, 0.08);
+  border-color: rgba(77, 232, 255, 0.25);
+  box-shadow: 0 0 18px rgba(77, 232, 255, 0.12);
+}
+
+.footer-nav {
+  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, #07080c 88%, transparent);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: end center;
+  padding: 0;
+}
+
+@media (min-width: 640px) {
+  .modal-backdrop {
+    place-items: center;
+    padding: 1.5rem;
+  }
 }
 
 .scrollbar-thin::-webkit-scrollbar {

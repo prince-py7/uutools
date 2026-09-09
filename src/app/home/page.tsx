@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
-import { Composer, StudyFiltersBar } from "@/components/feed/Composer";
+import { StudyFiltersBar } from "@/components/feed/Composer";
 import { PostCard } from "@/components/feed/PostCard";
 import { isVerifiedForFilter, sortFeedPosts } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
@@ -71,16 +71,7 @@ export default function HomePage() {
 
   return (
     <AppShell>
-      <div className="mx-auto flex max-w-xl flex-col gap-4 px-3 py-4 md:px-0">
-        <header className="px-1">
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold">
-            Trending today
-          </h1>
-          <p className="text-sm text-[var(--muted)]">
-            Classmates first, then your campus
-          </p>
-        </header>
-
+      <div className="mx-auto flex max-w-xl flex-col gap-3 px-3 pt-3 md:px-4 md:pt-4">
         <StudyFiltersBar
           studyOnly={studyOnly}
           setStudyOnly={setStudyOnly}
@@ -98,9 +89,7 @@ export default function HomePage() {
           setStudyType={setStudyType}
         />
 
-        <Composer />
-
-        <div className="space-y-4">
+        <div className="space-y-4 pb-4">
           {posts.length === 0 ? (
             <div className="card p-8 text-center text-[var(--muted)]">
               No posts match these filters yet.
