@@ -12,12 +12,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3010",
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run start",
-    url: "http://127.0.0.1:3000",
+    command: "npm run start -- -p 3010",
+    url: "http://127.0.0.1:3010",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

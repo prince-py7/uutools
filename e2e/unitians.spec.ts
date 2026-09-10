@@ -10,10 +10,12 @@ async function login(page: Page, user = "aarav", password = "password") {
 
 test.describe("UNITIANS demo flows", () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
+    await page.goto("/login");
+    await page.evaluate(() => {
       localStorage.removeItem("uu-community-demo-v3");
       localStorage.removeItem("uu-community-demo-v2");
     });
+    await page.reload();
   });
 
   test("registration and login", async ({ page }) => {
@@ -43,7 +45,7 @@ test.describe("UNITIANS demo flows", () => {
   test("admin roles portal", async ({ page }) => {
     await login(page, "admin", "admin123");
     await page.goto("/admin");
-    await expect(page.getByText(/developer portal/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /developer portal/i })).toBeVisible();
     await expect(page.getByText(/free-tier notice/i)).toBeVisible();
     await expect(page.getByText(/teacher delegation/i)).toBeVisible();
   });
@@ -72,7 +74,7 @@ test.describe("UNITIANS demo flows", () => {
   test("profile search directory", async ({ page }) => {
     await login(page);
     await page.goto("/search");
-    await page.getByPlaceholder(/search username/i).fill("riya");
+    await page.getByPlaceholder(/search username or name/i).fill("riya");
     await expect(page.getByText(/riya/i).first()).toBeVisible();
   });
 
