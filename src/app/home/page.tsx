@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { StudyFiltersBar } from "@/components/feed/Composer";
 import { PostCard } from "@/components/feed/PostCard";
+import { StoriesRail } from "@/components/social/StoriesRail";
 import { isVerifiedForFilter, sortFeedPosts } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 
@@ -72,6 +73,8 @@ export default function HomePage() {
   return (
     <AppShell>
       <div className="mx-auto flex max-w-xl flex-col gap-3 px-3 pt-3 md:px-4 md:pt-4">
+        <StoriesRail />
+
         <StudyFiltersBar
           studyOnly={studyOnly}
           setStudyOnly={setStudyOnly}

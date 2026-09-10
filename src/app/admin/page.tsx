@@ -20,6 +20,9 @@ export default function AdminPage() {
   const [roleClassId, setRoleClassId] = useState("");
   const [roleSectionId, setRoleSectionId] = useState("");
   const [roleType, setRoleType] = useState<"cr" | "professor">("cr");
+  const [collegeName, setCollegeName] = useState("");
+  const [collegeSlug, setCollegeSlug] = useState("");
+  const [targetCollegeId, setTargetCollegeId] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -44,11 +47,32 @@ export default function AdminPage() {
     flash("Threshold saved");
   }
 
+  function addCollege(e: FormEvent) {
+    e.preventDefault();
+    if (!collegeName.trim() || !collegeSlug.trim()) return;
+    const state = getDemoState();
+    const slug = collegeSlug.trim().toLowerCase().replace(/\s+/g, "-");
+    if (state.colleges.some((c) => c.slug === slug)) {
+      flash("College slug already exists");
+      return;
+    }
+    state.colleges.push({
+      id: newId(),
+      name: collegeName.trim(),
+      slug,
+      is_active: true,
+    });
+    saveDemoState(state);
+    setCollegeName("");
+    setCollegeSlug("");
+    flash("College added");
+  }
+
   function addClass(e: FormEvent) {
     e.preventDefault();
     if (!className.trim()) return;
     const state = getDemoState();
-    const collegeId = state.colleges[0]?.id;
+    const collegeId = targetCollegeId || state.colleges[0]?.id;
     state.classes.push({
       id: newId(),
       college_id: collegeId,
@@ -129,12 +153,47 @@ export default function AdminPage() {
             Developer portal
           </h1>
           <p className="text-sm text-[var(--muted)]">
-            Manage classes, roles, and UNITIANS POPULAR threshold
+            Manage colleges, classes, roles, and UNITIANS POPULAR threshold
           </p>
           {message && (
             <p className="mt-2 text-sm text-[var(--popular)]">{message}</p>
           )}
         </header>
+
+        <section className="card space-y-2 border-[var(--line)] p-5">
+          <h2 className="font-semibold">Free-tier notice</h2>
+          <p className="text-sm text-[var(--muted)]">{catalog.freeTierNotice}</p>
+          <p className="text-xs text-[var(--muted)]">
+            Non-commercial pilot: Supabase Free + Vercel Hobby. Watch storage, bandwidth, and
+            paused-project limits.
+          </p>
+        </section>
+
+        <section className="card space-y-3 p-5">
+          <h2 className="font-semibold">Colleges</h2>
+          <form className="grid gap-2 sm:grid-cols-3" onSubmit={addCollege}>
+            <input
+              className="input"
+              placeholder="College name"
+              value={collegeName}
+              onChange={(e) => setCollegeName(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="slug"
+              value={collegeSlug}
+              onChange={(e) => setCollegeSlug(e.target.value)}
+            />
+            <button className="btn btn-primary">Add college</button>
+          </form>
+          <ul className="text-sm text-[var(--muted)]">
+            {catalog.colleges.map((c) => (
+              <li key={c.id}>
+                • {c.name} ({c.slug}){c.is_active ? "" : " · inactive"}
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">UNITIANS POPULAR like threshold</h2>
@@ -156,7 +215,19 @@ export default function AdminPage() {
 
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">Add class</h2>
-          <form className="flex gap-2" onSubmit={addClass}>
+          <form className="grid gap-2 sm:grid-cols-3" onSubmit={addClass}>
+            <select
+              className="input"
+              value={targetCollegeId}
+              onChange={(e) => setTargetCollegeId(e.target.value)}
+            >
+              <option value="">College (default first)</option>
+              {catalog.colleges.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
             <input
               className="input"
               placeholder="e.g. MCA"
@@ -166,9 +237,14 @@ export default function AdminPage() {
             <button className="btn btn-primary">Add</button>
           </form>
           <ul className="text-sm text-[var(--muted)]">
-            {catalog.classes.map((c) => (
-              <li key={c.id}>• {c.name}</li>
-            ))}
+            {catalog.classes.map((c) => {
+              const col = catalog.colleges.find((x) => x.id === c.college_id);
+              return (
+                <li key={c.id}>
+                  • {c.name} · {col?.name}
+                </li>
+              );
+            })}
           </ul>
         </section>
 
@@ -297,6 +373,17 @@ export default function AdminPage() {
               );
             })}
           </ul>
+        </section>
+
+        <section className="card space-y-2 p-5 opacity-70">
+          <h2 className="font-semibold">Teacher delegation (planned)</h2>
+          <p className="text-sm text-[var(--muted)]">
+            Schema includes <code>teacher_delegations</code> for later. Not granted in this
+            release — only developer admins manage colleges/classes/roles.
+          </p>
+          <button type="button" className="btn btn-ghost" disabled>
+            Delegate teacher tools — coming later
+          </button>
         </section>
 
         <section className="card space-y-3 p-5">

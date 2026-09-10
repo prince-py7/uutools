@@ -7,6 +7,7 @@ import type {
   Section,
 } from "./types";
 import { DEFAULT_POPULAR_THRESHOLD } from "./config";
+import { isEligibleVerifiedOnly, isUnitiansPopular, rankFeedPosts } from "./eligibility";
 
 export function classSectionLabel(
   classRow: ClassRow | undefined,
@@ -46,36 +47,17 @@ export function buildBadges(opts: {
     badges.push({ kind: "verified", label: "Verified" });
   }
 
-  if (
-    opts.post &&
-    !opts.post.is_official_verified &&
-    opts.post.kind === "study" &&
-    opts.post.like_count >= threshold
-  ) {
+  if (opts.post && isUnitiansPopular(opts.post, threshold)) {
     badges.push({ kind: "unitians_popular", label: "UNITIANS POPULAR" });
   }
 
   return badges;
 }
 
-export function isVerifiedForFilter(
-  post: Post,
-  threshold: number
-): boolean {
-  return (
-    post.is_official_verified ||
-    (post.kind === "study" && post.like_count >= threshold)
-  );
+export function isVerifiedForFilter(post: Post, threshold: number): boolean {
+  return isEligibleVerifiedOnly(post, threshold);
 }
 
-export function sortFeedPosts(
-  posts: Post[],
-  viewer: Profile | null
-): Post[] {
-  return [...posts].sort((a, b) => {
-    const aClass = viewer?.class_id && a.class_id === viewer.class_id ? 0 : 1;
-    const bClass = viewer?.class_id && b.class_id === viewer.class_id ? 0 : 1;
-    if (aClass !== bClass) return aClass - bClass;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+export function sortFeedPosts(posts: Post[], viewer: Profile | null): Post[] {
+  return rankFeedPosts(posts, viewer);
 }

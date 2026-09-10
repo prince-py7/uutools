@@ -29,13 +29,14 @@ export default function SearchPage() {
   const results = useMemo(() => {
     return catalog.profiles.filter((p) => {
       if (p.is_disabled) return false;
+      if (user?.college_id && p.college_id !== user.college_id) return false;
       if (classId && p.class_id !== classId) return false;
       if (sectionId && p.section_id !== sectionId) return false;
-      if (!q.trim()) return Boolean(classId);
+      if (!q.trim()) return Boolean(classId || sectionId);
       const hay = `${p.username} ${p.display_name}`.toLowerCase();
       return hay.includes(q.trim().toLowerCase());
     });
-  }, [catalog.profiles, q, classId, sectionId]);
+  }, [catalog.profiles, q, classId, sectionId, user?.college_id]);
 
   return (
     <AppShell>

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/lib/auth-context";
+import { demoFileToDataUrl } from "@/lib/demo-store";
 import type { Socials } from "@/lib/types";
 
 export default function EditProfilePage() {
@@ -18,6 +19,7 @@ export default function EditProfilePage() {
   const [verifyMsg, setVerifyMsg] = useState("");
   const [verifyError, setVerifyError] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   useEffect(() => {
     if (!ready) return;
@@ -122,14 +124,35 @@ export default function EditProfilePage() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm text-[var(--muted)]">
-              Avatar URL (upload via Supabase Storage when connected)
+              Avatar (jpeg/png/webp/gif, max 2 MB)
             </label>
             <input
-              className="input"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://…"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="mb-2 block w-full text-sm"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setAvatarError("");
+                const res = await demoFileToDataUrl(f, "avatar");
+                if ("error" in res) {
+                  setAvatarError(res.error);
+                  return;
+                }
+                setAvatarUrl(res.url);
+              }}
             />
+            {avatarUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt=""
+                className="mb-2 h-16 w-16 rounded-full object-cover"
+              />
+            )}
+            {avatarError && (
+              <p className="text-xs text-[var(--danger)]">{avatarError}</p>
+            )}
           </div>
           {(["instagram", "linkedin", "github", "website"] as const).map(
             (key) => (

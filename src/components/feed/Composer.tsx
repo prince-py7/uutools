@@ -2,8 +2,13 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
-import { demoCreatePost, getDemoState, saveDemoState } from "@/lib/demo-store";
-import type { PostKind, StudyType } from "@/lib/types";
+import {
+  demoCreatePost,
+  demoFileToDataUrl,
+  getDemoState,
+  saveDemoState,
+} from "@/lib/demo-store";
+import type { MediaType, PostKind, StudyType } from "@/lib/types";
 
 export function Composer({ onPosted }: { onPosted?: () => void }) {
   const { user } = useAuth();
@@ -12,6 +17,9 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
   const [kind, setKind] = useState<PostKind>("social");
   const [studyType, setStudyType] = useState<StudyType>("unit");
   const [subjectId, setSubjectId] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const subjects = useMemo(
     () => catalog.subjects.filter((s) => s.class_id === user?.class_id),
@@ -20,16 +28,38 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
 
   if (!user) return null;
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (!user || !caption.trim()) return;
+    setBusy(true);
+    setError("");
 
-    const isOfficial = catalog.roles.some(
-      (r) =>
-        r.user_id === user.id &&
-        r.class_id === user.class_id &&
-        (r.role === "cr" || r.role === "professor")
-    );
+    let media_url: string | null = null;
+    let media_type: MediaType = kind === "study" ? "pdf" : "none";
+
+    if (file) {
+      const uploadKind = kind === "study" ? "study-file" : "post-image";
+      const res = await demoFileToDataUrl(file, uploadKind);
+      if ("error" in res) {
+        setError(res.error);
+        setBusy(false);
+        return;
+      }
+      media_url = res.url;
+      media_type = res.mediaType;
+    } else if (kind === "social") {
+      media_type = "none";
+    }
+
+    const isOfficial =
+      kind === "study" &&
+      (user.is_admin ||
+        catalog.roles.some(
+          (r) =>
+            r.user_id === user.id &&
+            r.class_id === user.class_id &&
+            (r.role === "cr" || r.role === "professor")
+        ));
 
     demoCreatePost({
       author_id: user.id,
@@ -40,11 +70,13 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       study_type: kind === "study" ? studyType : null,
       subject_id: kind === "study" ? subjectId || null : null,
       caption: caption.trim(),
-      media_url: null,
-      media_type: kind === "study" ? "pdf" : "none",
-      is_official_verified: kind === "study" && isOfficial,
+      media_url,
+      media_type,
+      is_official_verified: Boolean(isOfficial),
     });
     setCaption("");
+    setFile(null);
+    setBusy(false);
     onPosted?.();
   }
 
@@ -93,10 +125,28 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             </select>
           </>
         )}
-        <button className="btn btn-primary ml-auto" type="submit">
-          Share
-        </button>
       </div>
+      <div>
+        <label className="mb-1 block text-xs text-[var(--muted)]">
+          {kind === "study"
+            ? "Attach image or PDF (max 10 MB)"
+            : "Optional image (jpeg/png/webp/gif, max 10 MB)"}
+        </label>
+        <input
+          type="file"
+          accept={
+            kind === "study"
+              ? "image/jpeg,image/png,image/webp,image/gif,application/pdf"
+              : "image/jpeg,image/png,image/webp,image/gif"
+          }
+          className="block w-full text-sm"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+      </div>
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
+      <button className="btn btn-primary ml-auto" type="submit" disabled={busy}>
+        {busy ? "Posting…" : "Share"}
+      </button>
     </form>
   );
 }

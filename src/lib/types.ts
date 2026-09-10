@@ -45,6 +45,7 @@ export type Profile = {
   is_admin: boolean;
   is_disabled: boolean;
   onboarding_complete: boolean;
+  last_verification_sent_at?: string | null;
 };
 
 export type ClassRole = {
@@ -55,8 +56,14 @@ export type ClassRole = {
   role: "cr" | "professor";
 };
 
-export type StudyType = "unit" | "assignment" | "practical" | "whiteboard" | "other";
+export type StudyType =
+  | "unit"
+  | "assignment"
+  | "practical"
+  | "whiteboard"
+  | "other";
 export type PostKind = "social" | "study";
+export type MediaType = "image" | "pdf" | "video" | "none";
 
 export type Post = {
   id: string;
@@ -69,9 +76,10 @@ export type Post = {
   subject_id: string | null;
   caption: string;
   media_url: string | null;
-  media_type: "image" | "pdf" | "none" | null;
+  media_type: MediaType | null;
   like_count: number;
   comment_count: number;
+  share_count: number;
   is_official_verified: boolean;
   created_at: string;
 };
@@ -92,6 +100,45 @@ export type TimetableSlot = {
   subject_text: string;
 };
 
+export type Story = {
+  id: string;
+  author_id: string;
+  college_id: string;
+  class_id: string;
+  media_url: string;
+  media_type: "image" | "video";
+  caption: string;
+  created_at: string;
+  expires_at: string;
+};
+
+export type FriendRequestStatus = "pending" | "accepted" | "rejected";
+
+export type FriendRequest = {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  status: FriendRequestStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Conversation = {
+  id: string;
+  user_a_id: string;
+  user_b_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Message = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+};
+
 export type BadgeKind =
   | "developer"
   | "professor"
@@ -106,6 +153,7 @@ export type Badge = {
 
 export type FeedFilters = {
   studyOnly: boolean;
+  classOnly: boolean;
   verifiedOnly: boolean;
   classId: string | null;
   sectionId: string | null;

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
-import { getDemoState, newId, saveDemoState } from "@/lib/demo-store";
+import { demoSaveTimetableSlot } from "@/lib/demo-store";
+import { DAYS as DAY_NS, SLOTS as SLOT_NS } from "@/lib/timetable";
 
 const DAYS = [
   { n: 1, label: "Monday" },
@@ -14,13 +15,14 @@ const DAYS = [
   { n: 5, label: "Friday" },
 ];
 
-const SLOTS = [1, 2, 3, 4, 5, 6, 7];
+const SLOTS = [...SLOT_NS];
 
 export default function TimetablePage() {
   const { user, ready } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
   const [day, setDay] = useState(1);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!ready) return;
@@ -38,25 +40,10 @@ export default function TimetablePage() {
 
   function setCell(dayOfWeek: number, slot: number, subject_text: string) {
     if (!user) return;
-    const state = getDemoState();
-    const idx = state.timetables.findIndex(
-      (t) =>
-        t.user_id === user.id &&
-        t.day_of_week === dayOfWeek &&
-        t.slot === slot
-    );
-    if (idx >= 0) {
-      state.timetables[idx].subject_text = subject_text;
-    } else {
-      state.timetables.push({
-        id: newId(),
-        user_id: user.id,
-        day_of_week: dayOfWeek,
-        slot,
-        subject_text,
-      });
-    }
-    saveDemoState(state);
+    if (!DAY_NS.includes(dayOfWeek as (typeof DAY_NS)[number])) return;
+    const res = demoSaveTimetableSlot(user.id, dayOfWeek, slot, subject_text);
+    if (res.error) setError(res.error);
+    else setError("");
   }
 
   if (!user) return null;
@@ -70,6 +57,7 @@ export default function TimetablePage() {
         <p className="text-sm text-[var(--muted)]">
           Monday–Friday · 7 slots — set your own subjects
         </p>
+        {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
         <div className="flex gap-2 overflow-x-auto pb-1">
           {DAYS.map((d) => (
@@ -77,7 +65,7 @@ export default function TimetablePage() {
               key={d.n}
               className={`h-9 shrink-0 rounded-full px-4 text-sm font-semibold ${
                 day === d.n
-                  ? "bg-[var(--accent)] text-[#1a1200]"
+                  ? "bg-[var(--accent)] text-white"
                   : "border border-[var(--line)] text-[var(--muted)]"
               }`}
               onClick={() => setDay(d.n)}

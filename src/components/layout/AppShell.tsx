@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Calculator,
   CalendarDays,
@@ -12,6 +12,7 @@ import {
   Home,
   Image as ImageIcon,
   LogOut,
+  MessageCircle,
   PlusSquare,
   Search,
   Settings,
@@ -22,9 +23,11 @@ import {
   X,
 } from "lucide-react";
 import { Composer } from "@/components/feed/Composer";
+import { FriendRequestsPanel } from "@/components/social/FriendRequests";
 import { Avatar } from "@/components/ui/Badge";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { ShellProvider, useShell } from "@/lib/shell-context";
+import { verificationReminder } from "@/lib/verification";
 
 const tools = [
   { href: "/tools/image-finder", label: "Image Finder", icon: ImageIcon },
@@ -48,6 +51,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const catalog = useDemoCatalog();
   const {
     composerOpen,
     openComposer,
@@ -65,6 +69,17 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  const pendingCount = useMemo(
+    () =>
+      user
+        ? catalog.friendRequests.filter(
+            (r) => r.to_user_id === user.id && r.status === "pending"
+          ).length
+        : 0,
+    [catalog.friendRequests, user]
+  );
+
+  const reminder = user ? verificationReminder(user) : null;
   const profileHref = user ? `/profile/${user.username}` : "/login";
   const railW = railOpen ? EXPANDED : COLLAPSED;
 
@@ -93,6 +108,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             icon={Search}
             label="Search"
             active={pathname.startsWith("/search")}
+            expanded={railOpen}
+          />
+          <RailLink
+            href="/messages"
+            icon={MessageCircle}
+            label="Messages"
+            active={pathname.startsWith("/messages")}
             expanded={railOpen}
           />
           {user?.is_admin && (
@@ -184,7 +206,17 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         className="shell-main transition-[padding-left] duration-150 ease-out"
         style={{ ["--rail-w" as string]: `${railW}px` }}
       >
-        <div className="mx-auto w-full max-w-[630px]">{children}</div>
+        <div className="mx-auto w-full max-w-[630px]">
+          {reminder && (
+            <div className="mx-3 mt-3 rounded-lg border border-[var(--line)] bg-[#121212] px-3 py-2 text-xs text-[var(--muted)] md:mx-0">
+              {reminder}{" "}
+              <Link href="/profile/edit" className="text-[var(--accent)]">
+                Account settings
+              </Link>
+            </div>
+          )}
+          {children}
+        </div>
       </div>
 
       <nav className="footer-nav fixed inset-x-0 bottom-0 z-40 h-12">
@@ -194,11 +226,16 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             type="button"
             aria-label="Friend requests"
             onClick={openRequests}
-            className={`flex items-center justify-center ${
+            className={`relative flex items-center justify-center ${
               requestsOpen ? "text-white" : "text-[var(--text)]"
             }`}
           >
             <UserPlus size={24} strokeWidth={1.75} />
+            {pendingCount > 0 && (
+              <span className="absolute top-1 right-[calc(50%-14px)] grid h-4 min-w-4 place-items-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">
+                {pendingCount}
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -257,13 +294,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 <X size={18} />
               </button>
             </div>
-            <div className="space-y-2 p-5 text-sm text-[var(--muted)]">
-              <p>No requests yet.</p>
-              <p className="text-xs leading-relaxed">
-                Friend requests & chat ship in Phase 2. This button is ready for incoming
-                requests.
-              </p>
-            </div>
+            <FriendRequestsPanel onClose={closeRequests} />
           </div>
         </div>
       )}

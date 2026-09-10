@@ -15,6 +15,7 @@ import { buildBadges } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoAddComment,
+  demoRecordShare,
   demoToggleFavourite,
   demoToggleLike,
 } from "@/lib/demo-store";
@@ -85,20 +86,46 @@ export function PostCard({ post }: { post: Post }) {
         </p>
       )}
 
-      {post.media_type === "image" && (
-        <div className="mx-4 mb-3 flex aspect-square items-center justify-center rounded-xl bg-gradient-to-br from-[#1d2736] to-[#0f141c] text-[var(--muted)]">
-          Campus photo placeholder
+      {post.media_type === "image" && post.media_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={post.media_url}
+          alt=""
+          className="mb-3 max-h-[520px] w-full object-cover"
+        />
+      )}
+
+      {post.media_type === "image" && !post.media_url && (
+        <div className="mx-4 mb-3 flex aspect-square items-center justify-center rounded-xl bg-[#1a1a1a] text-[var(--muted)]">
+          Photo
         </div>
       )}
 
+      {post.media_type === "video" && post.media_url && (
+        <video
+          src={post.media_url}
+          controls
+          className="mb-3 max-h-[520px] w-full bg-black"
+        />
+      )}
+
       {post.media_type === "pdf" && (
-        <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--bg-elevated)] p-4">
+        <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[#1a1a1a] p-4">
           <FileText className="text-[var(--accent)]" />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-medium">Study file / PDF</p>
-            <p className="text-xs text-[var(--muted)]">
-              Attachments upload when Supabase Storage is connected
-            </p>
+            {post.media_url ? (
+              <a
+                href={post.media_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-[var(--accent)]"
+              >
+                Open attachment
+              </a>
+            ) : (
+              <p className="text-xs text-[var(--muted)]">No file attached</p>
+            )}
           </div>
         </div>
       )}
@@ -124,6 +151,7 @@ export function PostCard({ post }: { post: Post }) {
           className="btn btn-ghost border-0"
           onClick={async () => {
             const url = `${window.location.origin}/home?post=${post.id}`;
+            if (user) demoRecordShare(user.id, post.id);
             if (navigator.share) {
               try {
                 await navigator.share({ title: "UNITIANS", url });
@@ -138,6 +166,7 @@ export function PostCard({ post }: { post: Post }) {
           aria-label="Share"
         >
           <Share2 size={18} />
+          {post.share_count > 0 ? post.share_count : null}
         </button>
         <button
           className={`btn btn-ghost ml-auto border-0 ${favoured ? "text-[var(--accent)]" : ""}`}

@@ -1,82 +1,53 @@
-# UU Community
+# UNITIANS
 
-College-friendly Instagram-style social hub for **United University** students — campus feed, Study Mode, profiles, search, and tools (Image Finder, Attendance, Timetable, Favourites). Built to run **100% free** on Vercel + Supabase Hobby.
+Campus social for United University (multi-college ready). Quiet Instagram-like dark UI.
 
-> Stories, friends, and DMs are Phase 2 (not in this MVP).
+**Stack:** Next.js 15 · TypeScript · Tailwind · Supabase Free · Vercel Hobby  
+**Auth:** Email + password + globally unique username only (no Google/OAuth)  
+**Pilot:** Non-commercial. Free quotas can pause projects and limit storage/bandwidth.
 
-## Quick start (demo mode — no keys needed)
+## Quick start (demo mode)
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open http://localhost:3000 — works without Supabase (localStorage demo).
 
-Demo accounts:
-
-| Username | Password | Role |
-| --- | --- | --- |
-| `aarav` | `password` | Student (BCA B) |
-| `riya_cr` | `password` | CR (BCA B) |
-| `prof_sharma` | `password` | Professor |
+| User | Password | Notes |
+|------|----------|-------|
+| `aarav` | `password` | Student (unverified email — full access) |
+| `riya_cr` | `password` | Class representative |
 | `admin` | `admin123` | Developer portal |
 
-Demo data lives in browser `localStorage` until you connect Supabase.
+## Features
 
-## Free production stack
+- College-scoped feed (classmate-first), Study Only / Class Only, verified-only default
+- Official CR/Professor verification + green **UNITIANS POPULAR** for peer study posts over threshold
+- Friend requests, 1:1 DMs, class stories (24h `expires_at`)
+- Profiles, username + class/section directory search
+- Tools: Image Finder, Attendance, Timetable (Mon–Fri × 7), Favourites
+- Developer portal: colleges, classes, sections, subjects, scoped roles, disable users, threshold, free-tier notice
 
-| Layer | Service | Plan |
-| --- | --- | --- |
-| App hosting | [Vercel](https://vercel.com) | Hobby (free) |
-| Auth + DB + Storage | [Supabase](https://supabase.com) | Free |
-| Google login | Google Cloud OAuth | Free |
+## Production setup
 
-## Connect Supabase (when ready)
+See **[docs/SETUP.md](docs/SETUP.md)** for:
 
-1. Create a free Supabase project.
-2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
-3. Create Storage buckets: `avatars`, `post-media`, `study-files` (public read).
-4. Auth → Providers → enable **Email** and **Google**.
-5. For Google: create OAuth client in Google Cloud Console; set redirect URI to  
-   `https://<PROJECT_REF>.supabase.co/auth/v1/callback`
-6. Copy `.env.example` → `.env.local` and fill:
+1. Supabase schema + storage buckets  
+2. Email provider settings (verification non-blocking)  
+3. Env vars + Vercel deploy  
+4. Bootstrap first admin  
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-NEXT_PUBLIC_IMAGE_API_URL=https://api.uuonline.in/api/student/image
-```
+Legacy static UUID tools live in `legacy-uutools/`.
 
-7. After first signup of your account, promote yourself to admin:
-
-```sql
-update public.profiles set is_admin = true where username = 'YOUR_USERNAME';
-```
-
-8. Deploy on Vercel: Import this repo → add the same env vars → Deploy.
-
-## Features (MVP)
-
-- Instagram-like login (username/password; Google when Supabase configured)
-- College select (United University seeded; multi-college ready)
-- Home feed: classmates first, likes / comments / share
-- **Study Only** + **Class Only** toggles
-- Study filters: Verified only (default on), class / section / subject, assignments, practicals
-- Badges: Developer, `BCA B - CR`, `BCA B - Professor`, Verified, green **UNITIANS POPULAR**
-- Developer portal: classes/sections/subjects, CR/Professor assign, popular like threshold, disable users
-- Profiles (bio, socials, avatar URL), search + class directory filter
-- Tools sidebar: Image Finder, Attendance calculator, Mon–Fri 7-slot timetable, Favourites
-
-## Scripts
+## Tests
 
 ```bash
-npm run dev      # local development
-npm run build    # production build
-npm run start    # serve production build
-npm run lint     # eslint
+npm test                 # unit (vitest)
+npm run build && npm run test:e2e   # Playwright — see e2e/README.md
 ```
 
-## Legacy UU Tools
+## License
 
-The original static UUID finder lives in [`legacy-uutools/`](legacy-uutools/) and is ported into `/tools/image-finder`.
+Private pilot for United University campus use.

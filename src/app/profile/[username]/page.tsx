@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
 import { PostCard } from "@/components/feed/PostCard";
+import { SendFriendButton } from "@/components/social/FriendRequests";
 import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 
@@ -20,9 +21,13 @@ export default function ProfilePage() {
     if (!user) router.replace("/login");
   }, [ready, user, router]);
 
-  const profile = catalog.profiles.find(
-    (p) => p.username === params.username
-  );
+  const profile = catalog.profiles.find((p) => {
+    if (p.username !== params.username) return false;
+    if (!user) return true;
+    if (p.id === user.id) return true;
+    if (user.is_admin) return true;
+    return Boolean(user.college_id && p.college_id === user.college_id);
+  });
   const cls = catalog.classes.find((c) => c.id === profile?.class_id);
   const sec = catalog.sections.find((s) => s.id === profile?.section_id);
   const college = catalog.colleges.find((c) => c.id === profile?.college_id);
@@ -91,11 +96,15 @@ export default function ProfilePage() {
                   </a>
                 )}
               </div>
-              {isSelf && (
-                <Link href="/profile/edit" className="btn btn-ghost mt-4 inline-flex">
-                  Edit profile
-                </Link>
-              )}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {isSelf ? (
+                  <Link href="/profile/edit" className="btn btn-ghost inline-flex">
+                    Edit profile / Account
+                  </Link>
+                ) : (
+                  <SendFriendButton targetUserId={profile.id} />
+                )}
+              </div>
             </div>
           </div>
         </div>
