@@ -14,6 +14,7 @@ import {
   demoCurrentUser,
   demoLogin,
   demoLogout,
+  demoRequestEmailVerification,
   demoSignup,
   demoUpdateProfile,
   getDemoState,
@@ -25,17 +26,23 @@ type AuthContextValue = {
   demoMode: boolean;
   user: Profile | null;
   refresh: () => void;
-  login: (username: string, password: string) => Promise<{ error?: string }>;
+  login: (identifier: string, password: string) => Promise<{ error?: string }>;
   signup: (opts: {
     username: string;
+    email: string;
     password: string;
     displayName: string;
   }) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<Profile | null>;
+  requestEmailVerification: () => Promise<{ error?: string; message?: string }>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const demoMode = !isSupabaseConfigured();
@@ -48,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
       return;
     }
-    // Supabase path hydrated client-side by pages that need it
     setReady(true);
   }, [demoMode]);
 
@@ -61,27 +67,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [demoMode, refresh]);
 
   const login = useCallback(
-    async (username: string, password: string) => {
+    async (identifier: string, password: string) => {
+      const raw = identifier.trim();
       if (demoMode) {
-        const res = demoLogin(username, password);
+        const res = demoLogin(raw, password);
         if (res.error) return { error: res.error };
         setUser(res.profile ?? null);
         return {};
       }
+
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      const email = `${username.toLowerCase()}@users.uu.community`;
+
+      let email = raw.toLowerCase();
+      if (!isEmail(raw)) {
+        const { data, error } = await supabase.rpc("email_for_username", {
+          uname: raw.toLowerCase(),
+        });
+        if (error || !data) {
+          return { error: "User not found" };
+        }
+        email = String(data);
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (error) return { error: error.message };
-      const { data } = await supabase
+
+      const { data: profile } = await supabase
         .from("profiles")
         .select("*")
-        .eq("username", username.toLowerCase())
+        .eq("email", email)
         .maybeSingle();
-      setUser((data as Profile) ?? null);
+      setUser((profile as Profile) ?? null);
       return {};
     },
     [demoMode]
@@ -90,34 +110,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = useCallback(
     async (opts: {
       username: string;
+      email: string;
       password: string;
       displayName: string;
     }) => {
+      const username = opts.username.trim().toLowerCase();
+      const email = opts.email.trim().toLowerCase();
+
       if (demoMode) {
-        const res = demoSignup(opts);
+        const res = demoSignup({
+          username,
+          email,
+          password: opts.password,
+          displayName: opts.displayName,
+        });
         if (res.error) return { error: res.error };
         setUser(res.profile ?? null);
         return {};
       }
+
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      const email = `${opts.username.toLowerCase()}@users.uu.community`;
+
+      const { data: takenUser } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", username)
+        .maybeSingle();
+      if (takenUser) return { error: "Username taken" };
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: opts.password,
         options: {
           data: {
-            username: opts.username.toLowerCase(),
-            full_name: opts.displayName,
+            username,
+            full_name: opts.displayName || username,
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) return { error: error.message };
+
       if (data.user) {
         await supabase.from("profiles").upsert({
           id: data.user.id,
-          username: opts.username.toLowerCase(),
-          display_name: opts.displayName,
+          username,
+          email,
+          email_verified: Boolean(data.user.email_confirmed_at),
+          display_name: opts.displayName || username,
         });
         const { data: profile } = await supabase
           .from("profiles")
@@ -165,6 +206,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [demoMode, user]
   );
 
+  const requestEmailVerification = useCallback(async () => {
+    if (!user) return { error: "Not signed in" };
+    if (user.email_verified) return { message: "Email already verified" };
+
+    if (demoMode) {
+      const res = demoRequestEmailVerification(user.id);
+      if (res.error) return { error: res.error };
+      setUser(res.profile ?? null);
+      return { message: "Email verified (demo)" };
+    }
+
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: user.email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) return { error: error.message };
+    return { message: "Verification email sent. Check your inbox." };
+  }, [demoMode, user]);
+
   const value = useMemo(
     () => ({
       ready,
@@ -175,8 +240,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signup,
       logout,
       updateProfile,
+      requestEmailVerification,
     }),
-    [ready, demoMode, user, refresh, login, signup, logout, updateProfile]
+    [
+      ready,
+      demoMode,
+      user,
+      refresh,
+      login,
+      signup,
+      logout,
+      updateProfile,
+      requestEmailVerification,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

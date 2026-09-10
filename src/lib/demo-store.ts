@@ -13,7 +13,7 @@ import type {
 } from "./types";
 import { DEFAULT_POPULAR_THRESHOLD } from "./config";
 
-const KEY = "uu-community-demo-v1";
+const KEY = "uu-community-demo-v2";
 
 export type DemoState = {
   sessionUserId: string | null;
@@ -91,6 +91,8 @@ function seed(): DemoState {
       {
         id: adminId,
         username: "admin",
+        email: "admin@united.ac.in",
+        email_verified: true,
         display_name: "Prince",
         bio: "Building UNITIANS",
         avatar_url: null,
@@ -105,6 +107,8 @@ function seed(): DemoState {
       {
         id: crId,
         username: "riya_cr",
+        email: "riya@united.ac.in",
+        email_verified: true,
         display_name: "Riya Verma",
         bio: "CR — BCA B",
         avatar_url: null,
@@ -119,6 +123,8 @@ function seed(): DemoState {
       {
         id: profId,
         username: "prof_sharma",
+        email: "sharma@united.ac.in",
+        email_verified: true,
         display_name: "Prof. Sharma",
         bio: "Faculty — DBMS",
         avatar_url: null,
@@ -133,6 +139,8 @@ function seed(): DemoState {
       {
         id: stu1,
         username: "aarav",
+        email: "aarav@united.ac.in",
+        email_verified: false,
         display_name: "Aarav Singh",
         bio: "BCA B | coffee + code",
         avatar_url: null,
@@ -147,6 +155,8 @@ function seed(): DemoState {
       {
         id: stu2,
         username: "neha",
+        email: "neha@united.ac.in",
+        email_verified: false,
         display_name: "Neha Gupta",
         bio: "BCA A",
         avatar_url: null,
@@ -340,10 +350,12 @@ export function saveDemoState(state: DemoState) {
   write(state);
 }
 
-export function demoLogin(username: string, password: string) {
+export function demoLogin(identifier: string, password: string) {
   const state = read();
+  const key = identifier.trim().toLowerCase();
   const profile = state.profiles.find(
-    (p) => p.username.toLowerCase() === username.toLowerCase()
+    (p) =>
+      p.username.toLowerCase() === key || p.email.toLowerCase() === key
   );
   if (!profile) return { error: "User not found" };
   if (state.passwords[profile.username] !== password) {
@@ -357,17 +369,31 @@ export function demoLogin(username: string, password: string) {
 
 export function demoSignup(opts: {
   username: string;
+  email: string;
   password: string;
   displayName: string;
 }) {
   const state = read();
-  if (state.profiles.some((p) => p.username.toLowerCase() === opts.username.toLowerCase())) {
+  const username = opts.username.trim().toLowerCase();
+  const email = opts.email.trim().toLowerCase();
+  if (!/^[a-z0-9._]{3,24}$/.test(username)) {
+    return { error: "Username must be 3–24 chars (letters, numbers, . _)" };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "Enter a valid email" };
+  }
+  if (state.profiles.some((p) => p.username.toLowerCase() === username)) {
     return { error: "Username taken" };
+  }
+  if (state.profiles.some((p) => p.email.toLowerCase() === email)) {
+    return { error: "Email already registered" };
   }
   const profile: Profile = {
     id: id(),
-    username: opts.username.toLowerCase(),
-    display_name: opts.displayName || opts.username,
+    username,
+    email,
+    email_verified: false,
+    display_name: opts.displayName || username,
     bio: "",
     avatar_url: null,
     college_id: null,
@@ -381,6 +407,16 @@ export function demoSignup(opts: {
   state.profiles.push(profile);
   state.passwords[profile.username] = opts.password;
   state.sessionUserId = profile.id;
+  write(state);
+  return { profile };
+}
+
+export function demoRequestEmailVerification(userId: string) {
+  const state = read();
+  const profile = state.profiles.find((p) => p.id === userId);
+  if (!profile) return { error: "User not found" };
+  // Demo: mark verified immediately (real app sends email via Supabase)
+  profile.email_verified = true;
   write(state);
   return { profile };
 }

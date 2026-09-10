@@ -43,6 +43,8 @@ create table if not exists public.subjects (
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text not null unique,
+  email text not null unique,
+  email_verified boolean not null default false,
   display_name text not null default '',
   bio text not null default '',
   avatar_url text,
@@ -165,13 +167,17 @@ declare
   uname text;
 begin
   uname := coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1));
-  insert into public.profiles (id, username, display_name)
+  insert into public.profiles (id, username, email, email_verified, display_name)
   values (
     new.id,
-    uname || '-' || substr(replace(new.id::text, '-', ''), 1, 6),
+    lower(uname),
+    lower(new.email),
+    coalesce(new.email_confirmed_at is not null, false),
     coalesce(new.raw_user_meta_data->>'full_name', uname)
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update set
+    email = excluded.email,
+    email_verified = coalesce(new.email_confirmed_at is not null, false);
   return new;
 end;
 $$;
@@ -285,6 +291,40 @@ create policy settings_admin on public.app_settings for all to authenticated usi
 
 create policy reports_insert on public.reports for insert to authenticated with check (reporter_id = auth.uid());
 create policy reports_admin on public.reports for select to authenticated using (public.is_admin());
+
+-- Allow login-by-username: resolve email without exposing full profile to anon
+create or replace function public.email_for_username(uname text)
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+  select email from public.profiles where lower(username) = lower(uname) limit 1;
+$$;
+
+grant execute on function public.email_for_username(text) to anon, authenticated;
+
+-- Keep email_verified in sync when auth.users confirms email
+create or replace function public.sync_email_verified()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.profiles
+  set email_verified = (new.email_confirmed_at is not null),
+      email = lower(new.email),
+      updated_at = now()
+  where id = new.id;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_email_confirmed on auth.users;
+create trigger on_auth_user_email_confirmed
+  after update of email_confirmed_at, email on auth.users
+  for each row execute function public.sync_email_verified();
 
 -- Storage buckets (run in dashboard or via API):
 -- avatars, post-media, study-files (public read, authenticated write to own folder)

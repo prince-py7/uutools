@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function LoginPage() {
   const { login, demoMode } = useAuth();
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const res = await login(username.trim(), password);
+    const res = await login(identifier.trim(), password);
     setLoading(false);
     if (res.error) {
       setError(res.error);
@@ -44,16 +44,16 @@ export default function LoginPage() {
               Unitians
             </h1>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              Sign in to your campus feed
+              Sign in with username or email
             </p>
           </div>
 
           <form className="space-y-2" onSubmit={onSubmit}>
             <input
               className="input bg-[#121212]"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Username or email"
               required
               autoComplete="username"
             />
@@ -69,7 +69,7 @@ export default function LoginPage() {
             {error && <p className="pt-1 text-sm text-[var(--danger)]">{error}</p>}
             <button
               className="btn btn-primary mt-2 w-full"
-              disabled={loading || !username || !password}
+              disabled={loading || !identifier || !password}
             >
               {loading ? "Signing in…" : "Log in"}
             </button>
@@ -83,8 +83,6 @@ export default function LoginPage() {
               <p>admin / admin123</p>
             </div>
           )}
-
-          {!demoMode && <GoogleButton />}
         </div>
 
         <div className="card mt-3 px-8 py-5 text-center text-sm text-[var(--muted)]">
@@ -95,26 +93,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-function GoogleButton() {
-  return (
-    <button
-      type="button"
-      className="btn btn-ghost mt-4 w-full"
-      onClick={async () => {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-      }}
-    >
-      Continue with Google
-    </button>
   );
 }

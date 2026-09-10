@@ -33,6 +33,8 @@ export type Socials = {
 export type Profile = {
   id: string;
   username: string;
+  email: string;
+  email_verified: boolean;
   display_name: string;
   bio: string;
   avatar_url: string | null;
