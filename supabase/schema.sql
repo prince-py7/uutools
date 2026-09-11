@@ -229,6 +229,47 @@ insert into public.colleges (name, slug, is_active)
 values ('United University', 'united-university', true)
 on conflict (slug) do nothing;
 
+-- Default classes / sections / subjects for United University (onboarding)
+do $$
+declare
+  uu_id uuid;
+  bca_id uuid;
+  btech_id uuid;
+begin
+  select id into uu_id from public.colleges where slug = 'united-university';
+  if uu_id is null then
+    return;
+  end if;
+
+  insert into public.classes (college_id, name)
+  values (uu_id, 'BCA')
+  on conflict (college_id, name) do update set name = excluded.name
+  returning id into bca_id;
+  if bca_id is null then
+    select id into bca_id from public.classes where college_id = uu_id and name = 'BCA';
+  end if;
+
+  insert into public.classes (college_id, name)
+  values (uu_id, 'BTech')
+  on conflict (college_id, name) do update set name = excluded.name
+  returning id into btech_id;
+  if btech_id is null then
+    select id into btech_id from public.classes where college_id = uu_id and name = 'BTech';
+  end if;
+
+  insert into public.sections (class_id, name) values
+    (bca_id, 'A'),
+    (bca_id, 'B'),
+    (btech_id, 'CSE')
+  on conflict (class_id, name) do nothing;
+
+  insert into public.subjects (class_id, name) values
+    (bca_id, 'DBMS'),
+    (bca_id, 'Operating Systems'),
+    (bca_id, 'Mathematics')
+  on conflict (class_id, name) do nothing;
+end $$;
+
 insert into public.app_settings (key, value)
 values
   ('popular_like_threshold', '10'::jsonb),

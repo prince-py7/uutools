@@ -238,7 +238,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("id", user.id)
         .select("*")
         .single();
-      if (error) return null;
+      if (error) {
+        console.error("updateProfile failed", error.message, patch);
+        return null;
+      }
       setUser(data as Profile);
       return data as Profile;
     },
