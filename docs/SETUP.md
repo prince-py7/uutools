@@ -15,6 +15,7 @@ In Supabase → SQL Editor, run in order:
 1. `supabase/schema.sql` — tables, RLS, triggers, United University + BCA/BTech seed, settings  
 2. `supabase/storage.sql` — buckets `avatars`, `post-media`, `study-files`, `stories` + policies  
 3. If onboarding has empty class/section dropdowns, also run `supabase/seed_uu.sql`  
+4. If your own profile posts are missing after an older schema, run `supabase/patch_posts_read.sql` (own posts are always readable; peers stay college-scoped)
 
 If you previously applied an older schema, re-run the full scripts (policies are dropped/recreated) or apply deltas carefully for Phase-2 tables: `stories`, `story_views`, `friend_requests`, `conversations`, `messages`, `shares`, `teacher_delegations`, `last_verification_sent_at`.
 
