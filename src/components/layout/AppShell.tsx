@@ -12,6 +12,7 @@ import {
   Home,
   Image as ImageIcon,
   LogOut,
+  Menu,
   MessageCircle,
   PlusSquare,
   Search,
@@ -37,7 +38,7 @@ const tools = [
 ];
 
 const COLLAPSED = 56;
-const EXPANDED = 180;
+const EXPANDED = 200;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -60,14 +61,26 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     openRequests,
     closeRequests,
   } = useShell();
+
   const [railOpen, setRailOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [toolsHover, setToolsHover] = useState(false);
 
   useEffect(() => {
     closeComposer();
     closeRequests();
+    setMobileOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileOpen]);
 
   const pendingCount = useMemo(
     () =>
@@ -83,8 +96,27 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const profileHref = user ? `/profile/${user.username}` : "/login";
   const railW = railOpen ? EXPANDED : COLLAPSED;
 
+  const navLinks = useMemo(
+    () => [
+      { href: "/home", label: "Home", icon: Home },
+      { href: "/search", label: "Search", icon: Search },
+      { href: "/messages", label: "Messages", icon: MessageCircle },
+      ...(user?.is_admin
+        ? [{ href: "/admin", label: "Developer", icon: Settings }]
+        : []),
+    ],
+    [user?.is_admin]
+  );
+
+  async function handleLogout() {
+    await logout();
+    setMobileOpen(false);
+    router.push("/login");
+  }
+
   return (
     <div className="min-h-screen bg-black text-[var(--text)]">
+      {/* Desktop sidebar */}
       <aside
         style={{ width: railW }}
         className="fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-[var(--line)] bg-black transition-[width] duration-150 ease-out md:flex"
@@ -102,30 +134,17 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-0.5 px-1">
-          <RailLink
-            href="/search"
-            icon={Search}
-            label="Search"
-            active={pathname.startsWith("/search")}
-            expanded={railOpen}
-          />
-          <RailLink
-            href="/messages"
-            icon={MessageCircle}
-            label="Messages"
-            active={pathname.startsWith("/messages")}
-            expanded={railOpen}
-          />
-          {user?.is_admin && (
+        <nav className="flex flex-1 flex-col gap-0.5 px-1.5">
+          {navLinks.map((item) => (
             <RailLink
-              href="/admin"
-              icon={Settings}
-              label="Developer"
-              active={pathname.startsWith("/admin")}
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              active={pathname.startsWith(item.href)}
               expanded={railOpen}
             />
-          )}
+          ))}
 
           <div
             className="relative mt-1"
@@ -134,12 +153,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           >
             <div
               title="Tools"
-              className={`icon-btn mx-auto ${pathname.startsWith("/tools") ? "active" : ""} ${
-                railOpen ? "!w-full !justify-start gap-3 !px-3" : ""
+              className={`rail-item ${railOpen ? "expanded" : "mx-auto"} ${
+                pathname.startsWith("/tools") ? "active" : ""
               }`}
             >
-              <Wrench size={20} strokeWidth={1.75} />
-              {railOpen && <span className="text-sm">Tools</span>}
+              <Wrench size={20} strokeWidth={1.75} className="shrink-0" />
+              {railOpen && <span className="truncate text-sm">Tools</span>}
             </div>
 
             {(toolsHover || railOpen) && (
@@ -166,8 +185,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                           : "text-[var(--muted)] hover:bg-[#1a1a1a] hover:text-white"
                       }`}
                     >
-                      <Icon size={17} strokeWidth={1.75} />
-                      {t.label}
+                      <Icon size={17} strokeWidth={1.75} className="shrink-0" />
+                      <span>{t.label}</span>
                     </Link>
                   );
                 })}
@@ -176,31 +195,140 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        <div className="border-t border-[var(--line)] p-1">
+        <div className="border-t border-[var(--line)] p-1.5">
           {user && (
             <button
+              type="button"
               title="Log out"
-              className={`icon-btn mx-auto ${railOpen ? "!w-full !justify-start gap-3 !px-3" : ""}`}
-              onClick={async () => {
-                await logout();
-                router.push("/login");
-              }}
+              className={`rail-item ${railOpen ? "expanded" : "mx-auto"}`}
+              onClick={handleLogout}
             >
-              <LogOut size={18} strokeWidth={1.75} />
-              {railOpen && <span className="text-sm">Log out</span>}
+              <LogOut size={18} strokeWidth={1.75} className="shrink-0" />
+              {railOpen && <span className="truncate text-sm">Log out</span>}
             </button>
           )}
         </div>
 
         <button
           type="button"
-          aria-label={railOpen ? "Collapse" : "Expand"}
+          aria-label={railOpen ? "Collapse sidebar" : "Expand sidebar"}
           onClick={() => setRailOpen((v) => !v)}
           className="absolute top-1/2 -right-3 z-40 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-[var(--line)] bg-[#121212] text-[var(--muted)] hover:text-white"
         >
           {railOpen ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}
         </button>
       </aside>
+
+      {/* Mobile top bar + hamburger */}
+      <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-[var(--line)] bg-black/95 px-2 backdrop-blur md:hidden">
+        <button
+          type="button"
+          aria-label="Open menu"
+          className="grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a]"
+          onClick={() => setMobileOpen(true)}
+        >
+          <Menu size={22} strokeWidth={1.75} />
+        </button>
+        <Link href="/home" className="flex items-center gap-2">
+          <Image
+            src="/brand/unitians-logo.png"
+            alt="Unitians"
+            width={22}
+            height={22}
+            className="object-contain"
+          />
+          <span className="text-[15px] font-semibold tracking-tight">Unitians</span>
+        </Link>
+        <Link
+          href={profileHref}
+          className="grid h-10 w-10 place-items-center"
+          aria-label="Profile"
+        >
+          {user ? (
+            <Avatar name={user.display_name} url={user.avatar_url} size={24} />
+          ) : (
+            <UserRound size={20} />
+          )}
+        </Link>
+      </header>
+
+      {/* Mobile slide-out drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Close menu overlay"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[min(84vw,300px)] flex-col border-r border-[var(--line)] bg-[#0a0a0a] shadow-2xl">
+            <div className="flex h-12 items-center justify-between border-b border-[var(--line)] px-3">
+              <span className="text-sm font-semibold">Menu</span>
+              <button
+                type="button"
+                aria-label="Close menu"
+                className="grid h-9 w-9 place-items-center rounded-lg hover:bg-[#1a1a1a]"
+                onClick={() => setMobileOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
+              {navLinks.map((item) => {
+                const Icon = item.icon;
+                const active = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm ${
+                      active
+                        ? "bg-[#1a1a1a] text-white"
+                        : "text-[var(--muted)] hover:bg-[#141414] hover:text-white"
+                    }`}
+                  >
+                    <Icon size={20} strokeWidth={1.75} className="shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+              <p className="px-3 pt-3 pb-1 text-[11px] font-medium tracking-wide text-[var(--muted)] uppercase">
+                Tools
+              </p>
+              {tools.map((t) => {
+                const Icon = t.icon;
+                const active = pathname === t.href;
+                return (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm ${
+                      active
+                        ? "bg-[#1a1a1a] text-white"
+                        : "text-[var(--muted)] hover:bg-[#141414] hover:text-white"
+                    }`}
+                  >
+                    <Icon size={20} strokeWidth={1.75} className="shrink-0" />
+                    <span>{t.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            {user && (
+              <div className="border-t border-[var(--line)] p-2">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm text-[var(--muted)] hover:bg-[#141414] hover:text-white"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={18} strokeWidth={1.75} className="shrink-0" />
+                  <span>Log out</span>
+                </button>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
 
       <div
         className="shell-main transition-[padding-left] duration-150 ease-out"
@@ -310,7 +438,11 @@ function RailLink({
   expanded,
 }: {
   href: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  icon: React.ComponentType<{
+    size?: number;
+    strokeWidth?: number;
+    className?: string;
+  }>;
   label: string;
   active: boolean;
   expanded: boolean;
@@ -319,12 +451,10 @@ function RailLink({
     <Link
       href={href}
       title={label}
-      className={`icon-btn mx-auto ${active ? "active" : ""} ${
-        expanded ? "!w-full !justify-start gap-3 !px-3" : ""
-      }`}
+      className={`rail-item ${expanded ? "expanded" : "mx-auto"} ${active ? "active" : ""}`}
     >
-      <Icon size={20} strokeWidth={1.75} />
-      {expanded && <span className="text-sm">{label}</span>}
+      <Icon size={20} strokeWidth={1.75} className="shrink-0" />
+      {expanded && <span className="truncate text-sm">{label}</span>}
     </Link>
   );
 }

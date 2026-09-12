@@ -19,15 +19,25 @@ import {
   demoToggleFavourite,
   demoToggleLike,
 } from "@/lib/demo-store";
-import type { Post } from "@/lib/types";
+import type { Post, Profile } from "@/lib/types";
 
-export function PostCard({ post }: { post: Post }) {
+export function PostCard({
+  post,
+  author: authorOverride,
+}: {
+  post: Post;
+  /** When set (e.g. profile page), skip demo-catalog author lookup. */
+  author?: Profile | null;
+}) {
   const { user } = useAuth();
   const catalog = useDemoCatalog();
   const [showComments, setShowComments] = useState(false);
   const [comment, setComment] = useState("");
 
-  const author = catalog.profiles.find((p) => p.id === post.author_id);
+  const author =
+    authorOverride ??
+    catalog.profiles.find((p) => p.id === post.author_id) ??
+    null;
   const liked = Boolean(
     user &&
       catalog.likes.some((l) => l.user_id === user.id && l.post_id === post.id)

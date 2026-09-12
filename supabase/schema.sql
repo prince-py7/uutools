@@ -574,9 +574,10 @@ create policy teacher_delegations_admin on public.teacher_delegations for all to
 create policy teacher_delegations_read_own on public.teacher_delegations for select to authenticated
   using (teacher_id = auth.uid() or public.is_admin());
 
--- Posts: college-scoped
+-- Posts: own posts always readable; peers same college
+drop policy if exists posts_read on public.posts;
 create policy posts_read on public.posts for select to authenticated
-  using (public.same_college(college_id));
+  using (author_id = auth.uid() or public.same_college(college_id));
 create policy posts_insert on public.posts for insert to authenticated
   with check (
     author_id = auth.uid()
