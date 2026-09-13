@@ -114,9 +114,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const navLinks = useMemo(
     () => [
-      { href: "/home", label: "Home", icon: Home },
-      { href: "/search", label: "Search", icon: Search },
-      { href: "/messages", label: "Messages", icon: MessageCircle },
       ...(user?.is_admin
         ? [{ href: "/admin", label: "Developer", icon: Settings }]
         : []),
@@ -235,17 +232,20 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
 
-      {/* Mobile top bar + hamburger */}
-      <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-[var(--line)] bg-black/95 px-2 backdrop-blur md:hidden">
+      {/* Top bar: Search + Messages (profile slot → Messages) */}
+      <header
+        className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-[var(--line)] bg-black/95 px-2 backdrop-blur md:ml-[var(--rail-w)] md:justify-end"
+        style={{ ["--rail-w" as string]: `${railW}px` }}
+      >
         <button
           type="button"
           aria-label="Open menu"
-          className="grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a]"
+          className="grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a] md:hidden"
           onClick={() => setMobileOpen(true)}
         >
           <Menu size={22} strokeWidth={1.75} />
         </button>
-        <Link href="/home" className="flex items-center gap-2">
+        <Link href="/home" className="flex items-center gap-2 md:hidden">
           <Image
             src="/brand/unitians-logo.png"
             alt="Unitians"
@@ -255,17 +255,31 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           />
           <span className="text-[15px] font-semibold tracking-tight">Unitians</span>
         </Link>
-        <Link
-          href={profileHref}
-          className="grid h-10 w-10 place-items-center"
-          aria-label="Profile"
-        >
-          {user ? (
-            <Avatar name={user.display_name} url={user.avatar_url} size={24} />
-          ) : (
-            <UserRound size={20} />
-          )}
-        </Link>
+        <div className="flex items-center gap-0.5">
+          <Link
+            href="/search"
+            className={`grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a] ${
+              pathname.startsWith("/search") ? "text-white" : "text-[var(--text)]"
+            }`}
+            aria-label="Search"
+            title="Search"
+          >
+            <Search size={22} strokeWidth={pathname.startsWith("/search") ? 2.25 : 1.75} />
+          </Link>
+          <Link
+            href="/messages"
+            className={`grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a] ${
+              pathname.startsWith("/messages") ? "text-white" : "text-[var(--text)]"
+            }`}
+            aria-label="Messages"
+            title="Messages"
+          >
+            <MessageCircle
+              size={22}
+              strokeWidth={pathname.startsWith("/messages") ? 2.25 : 1.75}
+            />
+          </Link>
+        </div>
       </header>
 
       {/* Mobile slide-out drawer */}
