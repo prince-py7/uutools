@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingState } from "@/components/ui/Loading";
+
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -16,8 +18,6 @@ export default function RootPage() {
   }, [ready, user, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center text-[var(--muted)]">
-      Loading UNITIANS…
-    </div>
+    <LoadingState label="Loading UNITIANS…" />
   );
 }

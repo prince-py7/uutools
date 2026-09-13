@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingInline } from "@/components/ui/Loading";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -68,12 +70,12 @@ export default function MessagesInboxPage() {
       <div className="mx-auto flex max-w-xl flex-col gap-3 px-3 pt-3 md:px-4">
         <h1 className="text-xl font-semibold">Messages</h1>
         <p className="text-xs text-[var(--muted)]">
-          Private 1:1 DMs with friends in your college. Group chats are out of
+          Private chats with friends in your college. Group chats are coming soon.
           scope.
         </p>
         <div className="card divide-y divide-[var(--line)]">
           {loading ? (
-            <p className="p-5 text-sm text-[var(--muted)]">Loading…</p>
+            <LoadingInline label="Loading messages…" />
           ) : inbox.length === 0 ? (
             <p className="p-5 text-sm text-[var(--muted)]">
               No conversations yet. Accept a friend request, then tap Message.

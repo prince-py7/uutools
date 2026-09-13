@@ -210,7 +210,7 @@ export default function AttendancePage() {
               <p className="text-xs font-medium text-[var(--muted)]">
                 If I take leave for the next…
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {LEAVE_OPTIONS.map((d) => (
                   <button
                     key={d}
@@ -225,6 +225,21 @@ export default function AttendancePage() {
                     {d === 0 ? "None" : `${d}d`}
                   </button>
                 ))}
+                <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                  <span>Custom</span>
+                  <input
+                    className="input h-9 w-16 px-2 text-center"
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={prefs.leaveDays}
+                    onChange={(e) =>
+                      patch({ leaveDays: Math.max(0, Number(e.target.value) || 0) })
+                    }
+                    aria-label="Custom leave days"
+                  />
+                  <span>days</span>
+                </label>
               </div>
             </div>
 
@@ -239,14 +254,14 @@ export default function AttendancePage() {
             {advanced ? (
               <div className="space-y-4 border-t border-[var(--line)] pt-4">
                 <p className="text-xs text-[var(--muted)]">
-                  Optional. Dates use <b>DD/MM/YYYY</b>. Semester start unlocks
+                  Optional. Dates use <b>DD/MM/YYYY</b>. Start date unlocks
                   Saturday class mapping (open Saturdays follow Mon→Fri from your
                   timetable).
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block space-y-1.5">
                     <span className="text-xs text-[var(--muted)]">
-                      Semester start
+                      Start date
                     </span>
                     <input
                       className="input"
@@ -260,7 +275,7 @@ export default function AttendancePage() {
                   </label>
                   <label className="block space-y-1.5">
                     <span className="text-xs text-[var(--muted)]">
-                      Semester end
+                      End date
                     </span>
                     <input
                       className="input"

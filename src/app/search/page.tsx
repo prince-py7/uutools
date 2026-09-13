@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingInline } from "@/components/ui/Loading";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -166,7 +168,7 @@ export default function SearchPage() {
         </p>
         <div className="space-y-2">
           {loading && (
-            <p className="text-sm text-[var(--muted)]">Searching…</p>
+            <LoadingInline label="Searching…" />
           )}
           {shown.map((p) => {
             const cls =

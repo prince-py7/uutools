@@ -390,10 +390,9 @@ export default function AdminPage() {
     <AppShell>
       <div className="mx-auto max-w-3xl space-y-6 px-3 py-4 md:px-0">
         <header>
-          <h1 className="text-2xl font-bold">Developer portal</h1>
+          <h1 className="text-2xl font-bold">Admin</h1>
           <p className="text-sm text-[var(--muted)]">
             Manage colleges, classes, roles, and UNITIANS POPULAR threshold
-            {demoMode ? " (demo)" : ""}
           </p>
           {message && (
             <p className="mt-2 text-sm text-[var(--popular)]">{message}</p>

@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingState, SkeletonRows } from "@/components/ui/Loading";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
@@ -173,8 +175,8 @@ export default function HomePage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--muted)]">
-        Loading…
+      <div className="flex min-h-screen items-center justify-center">
+        <LoadingState label="Loading…" />
       </div>
     );
   }
@@ -214,9 +216,7 @@ export default function HomePage() {
               demoPosts.map((p) => <PostCard key={p.id} post={p} />)
             )
           ) : loadingFeed ? (
-            <div className="card p-8 text-center text-[var(--muted)]">
-              Loading feed…
-            </div>
+            <SkeletonRows rows={3} />
           ) : liveItems.length === 0 ? (
             <div className="card p-8 text-center text-[var(--muted)]">
               No posts yet — tap + to share the first one.

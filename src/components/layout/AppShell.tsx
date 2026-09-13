@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Bell,
   Calculator,
   CalendarDays,
   ChevronLeft,
@@ -29,14 +30,24 @@ import { FriendRequestsPanel } from "@/components/social/FriendRequests";
 import { Avatar } from "@/components/ui/Badge";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { countPendingFriendRequests } from "@/lib/friends";
+import { countUnreadNotifications } from "@/lib/notifications";
+import { enablePushNotifications, pushSupported } from "@/lib/push";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { verificationReminder } from "@/lib/verification";
+
+const PUSH_PROMPT_KEY = "unitians-push-prompt-dismissed";
 
 const tools = [
   { href: "/tools/image-finder", label: "Image Finder", icon: ImageIcon },
   { href: "/tools/attendance", label: "Attendance", icon: Calculator },
   { href: "/tools/timetable", label: "Timetable", icon: CalendarDays },
   { href: "/tools/favourites", label: "Favourites", icon: Star },
+  {
+    href: "/tools/announcements",
+    label: "Class announcements",
+    icon: Bell,
+    staffOnly: true as const,
+  },
 ];
 
 const COLLAPSED = 56;
@@ -85,6 +96,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }, [mobileOpen]);
 
   const [pendingCount, setPendingCount] = useState(0);
+  const [notifCount, setNotifCount] = useState(0);
+  const [isStaff, setIsStaff] = useState(false);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -108,14 +123,71 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     };
   }, [user, demoMode, catalog.friendRequests]);
 
+  useEffect(() => {
+    if (!user) {
+      setNotifCount(0);
+      setIsStaff(false);
+      return;
+    }
+    let cancelled = false;
+    void countUnreadNotifications(user.id).then((n) => {
+      if (!cancelled) setNotifCount(n);
+    });
+    void (async () => {
+      if (user.is_admin) {
+        if (!cancelled) setIsStaff(true);
+        return;
+      }
+      const { fetchMyClassRoles } = await import("@/lib/announcements");
+      const roles = await fetchMyClassRoles(user.id);
+      if (!cancelled) {
+        setIsStaff(
+          roles.some((r) => r.role === "cr" || r.role === "professor")
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, demoMode, catalog, pathname]);
+
+  useEffect(() => {
+    if (!user || typeof window === "undefined") {
+      setShowPushPrompt(false);
+      return;
+    }
+    if (!pushSupported()) {
+      setShowPushPrompt(false);
+      return;
+    }
+    if (Notification.permission === "granted") {
+      setShowPushPrompt(false);
+      return;
+    }
+    try {
+      if (localStorage.getItem(PUSH_PROMPT_KEY) === "1") {
+        setShowPushPrompt(false);
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+    setShowPushPrompt(true);
+  }, [user]);
+
   const reminder = user ? verificationReminder(user) : null;
   const profileHref = user ? `/profile/${user.username}` : "/login";
   const railW = railOpen ? EXPANDED : COLLAPSED;
 
+  const visibleTools = useMemo(
+    () => tools.filter((t) => !("staffOnly" in t && t.staffOnly) || isStaff),
+    [isStaff]
+  );
+
   const navLinks = useMemo(
     () => [
       ...(user?.is_admin
-        ? [{ href: "/admin", label: "Developer", icon: Settings }]
+        ? [{ href: "/admin", label: "Admin", icon: Settings }]
         : []),
     ],
     [user?.is_admin]
@@ -185,7 +257,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 {!railOpen && (
                   <p className="px-2 py-1 text-[11px] text-[var(--muted)]">Tools</p>
                 )}
-                {tools.map((t) => {
+                {visibleTools.map((t) => {
                   const Icon = t.icon;
                   const active = pathname === t.href;
                   return (
@@ -260,6 +332,26 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <Search size={22} strokeWidth={pathname.startsWith("/search") ? 2.25 : 1.75} />
           </Link>
           <Link
+            href="/notifications"
+            className={`relative grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a] ${
+              pathname.startsWith("/notifications")
+                ? "text-white"
+                : "text-[var(--text)]"
+            }`}
+            aria-label="Notifications"
+            title="Notifications"
+          >
+            <Bell
+              size={22}
+              strokeWidth={pathname.startsWith("/notifications") ? 2.25 : 1.75}
+            />
+            {notifCount > 0 ? (
+              <span className="absolute top-1.5 right-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">
+                {notifCount > 9 ? "9+" : notifCount}
+              </span>
+            ) : null}
+          </Link>
+          <Link
             href="/messages"
             className={`grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a] ${
               pathname.startsWith("/messages") ? "text-white" : "text-[var(--text)]"
@@ -318,7 +410,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               <p className="px-3 pt-3 pb-1 text-[11px] font-medium tracking-wide text-[var(--muted)] uppercase">
                 Tools
               </p>
-              {tools.map((t) => {
+              {visibleTools.map((t) => {
                 const Icon = t.icon;
                 const active = pathname === t.href;
                 return (
@@ -366,6 +458,47 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
           )}
+          {showPushPrompt && user ? (
+            <div className="mx-3 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--line)] bg-[#121212] px-3 py-2 text-xs text-[var(--muted)] md:mx-0">
+              <p>Enable class alerts on this device?</p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md px-2 py-1 text-[var(--muted)] hover:text-white"
+                  onClick={() => {
+                    try {
+                      localStorage.setItem(PUSH_PROMPT_KEY, "1");
+                    } catch {
+                      /* ignore */
+                    }
+                    setShowPushPrompt(false);
+                  }}
+                >
+                  Not now
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-[var(--accent)] px-2.5 py-1 font-medium text-black disabled:opacity-60"
+                  disabled={pushBusy}
+                  onClick={() => {
+                    void (async () => {
+                      setPushBusy(true);
+                      await enablePushNotifications(user.id);
+                      setPushBusy(false);
+                      try {
+                        localStorage.setItem(PUSH_PROMPT_KEY, "1");
+                      } catch {
+                        /* ignore */
+                      }
+                      setShowPushPrompt(false);
+                    })();
+                  }}
+                >
+                  {pushBusy ? "Enabling…" : "Enable"}
+                </button>
+              </div>
+            </div>
+          ) : null}
           {children}
         </div>
       </div>

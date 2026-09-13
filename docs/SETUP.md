@@ -16,7 +16,8 @@ In Supabase → SQL Editor, run in order:
 2. `supabase/storage.sql` — buckets `avatars`, `post-media`, `study-files`, `stories` + policies
 3. If onboarding has empty class/section dropdowns, also run `supabase/seed_uu.sql`
 4. If your own profile posts are missing after an older schema, run `supabase/patch_posts_read.sql` (own posts are always readable; peers stay college-scoped)
-5. For College ID / enrollment number on profiles, run `supabase/patch_enrollment_id.sql` (also included in fresh `schema.sql`)
+5. For College ID / enrollment number on profiles, run `supabase/patch_enrollment_id.sql`
+6. For class announcements + notifications + Web Push, run `supabase/patch_notifications.sql` (also included in fresh `schema.sql`)
 
 If you previously applied an older schema, re-run the full scripts (policies are dropped/recreated) or apply deltas carefully for Phase-2 tables: `stories`, `story_views`, `friend_requests`, `conversations`, `messages`, `shares`, `teacher_delegations`, and profile column `last_verification_sent_at`.
 
@@ -44,6 +45,11 @@ Copy `.env.example` → `.env.local` (and Vercel Project Settings):
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 NEXT_PUBLIC_IMAGE_API_URL=https://api.uuonline.in/api/student/image
+
+# Optional Web Push (class announcement phone alerts)
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:admin@yourdomain.com
 ```
 
 Without these, the app runs in **demo mode** (localStorage). With them set, the full app is live against Supabase: auth, feed, friends, DMs, stories, search, favourites, timetable, and admin — demo/localStorage is only the offline fallback when env is missing.
