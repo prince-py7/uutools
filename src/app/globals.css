@@ -305,26 +305,4 @@ select {
 }
 
 /* Timetable grid: rotate on narrow phones so the full week fits */
-.tt-rotate-wrap {
-  width: 100%;
-  overflow: hidden;
-}
-.tt-rotate-inner {
-  width: 100%;
-}
-@media (max-width: 767px) {
-  .tt-rotate-wrap {
-    height: min(92vw, 420px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .tt-rotate-inner {
-    width: min(92vh, 560px);
-    transform: rotate(-90deg);
-    transform-origin: center center;
-  }
-  .tt-rotate-inner table {
-    min-width: min(92vh, 560px);
-  }
-}
+

@@ -164,7 +164,7 @@ export default function TimetablePage() {
           <div>
             <h1 className="text-2xl font-bold">Timetable</h1>
             <p className="text-sm text-[var(--muted)]">
-              Monday–Friday · 7 slots · Library = no class
+              Monday–Friday · 7 slots · Library / Lunch = no class
             </p>
           </div>
           <div className="relative" ref={menuRef}>
@@ -217,35 +217,36 @@ export default function TimetablePage() {
         )}
         {editing && (
           <p className="rounded-lg border border-[var(--line)] bg-[#121212] px-3 py-2 text-xs text-[var(--muted)]">
-            Editing — use ⋮ → <b>Save</b> when done. Type <b>Library</b> for no
-            class.
+            Editing — use ⋮ → <b>Save</b> when done. Type <b>Library</b> or <b>Lunch</b> for no class.
           </p>
         )}
 
-        <div className="tt-rotate-wrap">
-          <div className="tt-rotate-inner">
-            <table className="card w-full border-collapse text-[11px] sm:text-xs md:min-w-[640px] md:text-sm">
+        <div className="overflow-x-auto">
+            <table className="card w-full min-w-[640px] border-collapse text-xs md:text-sm">
               <thead>
                 <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                  <th className="sticky left-0 z-10 bg-black p-2 md:p-3">Slot</th>
-                  {DAYS.map((d) => (
-                    <th key={d.n} className="p-2 md:p-3" title={d.full}>
-                      <span className="md:hidden">{d.label}</span>
-                      <span className="hidden md:inline">{d.full}</span>
+                  <th className="sticky left-0 z-10 bg-black p-2 md:p-3">Day</th>
+                  {SLOTS.map((slot) => (
+                    <th key={slot} className="p-2 md:p-3">
+                      Slot {slot}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {SLOTS.map((slot) => (
-                  <tr key={slot} className="border-b border-[var(--line)]">
-                    <td className="sticky left-0 z-10 bg-black p-2 font-semibold text-[var(--muted)] md:p-3">
-                      {slot}
+                {DAYS.map((d) => (
+                  <tr key={d.n} className="border-b border-[var(--line)]">
+                    <td
+                      className="sticky left-0 z-10 bg-black p-2 font-semibold text-[var(--muted)] md:p-3"
+                      title={d.full}
+                    >
+                      <span className="md:hidden">{d.label}</span>
+                      <span className="hidden md:inline">{d.full}</span>
                     </td>
-                    {DAYS.map((d) => {
+                    {SLOTS.map((slot) => {
                       const val = grid[`${d.n}-${slot}`] || "";
                       return (
-                        <td key={d.n} className="p-1.5 md:p-2">
+                        <td key={slot} className="p-1.5 md:p-2">
                           {editing ? (
                             <input
                               className="input h-8 px-1.5 text-[11px] md:h-9 md:text-sm"
@@ -276,11 +277,6 @@ export default function TimetablePage() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        <p className="text-center text-[11px] text-[var(--muted)] md:hidden">
-          Grid is rotated to fit one screen — rotate the phone if needed.
-        </p>
 
         {editing && (
           <div className="flex gap-2">

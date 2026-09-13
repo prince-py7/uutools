@@ -231,13 +231,16 @@ import {
   lecturesOnDate,
   projectAttendance,
   toDateKey,
+  workingSaturdayIndex,
+  saturdayMapsToDayOfWeek,
 } from "../attendance";
 import type { TimetableSlot } from "../types";
 
 describe("attendance helpers", () => {
-  it("treats Library / empty as no class", () => {
+  it("treats Library / Lunch / empty as no class", () => {
     expect(isLectureSubject("")).toBe(false);
     expect(isLectureSubject("Library")).toBe(false);
+    expect(isLectureSubject("Lunch")).toBe(false);
     expect(isLectureSubject("Maths")).toBe(true);
   });
 
@@ -281,9 +284,56 @@ describe("attendance helpers", () => {
         lecturesAttended: 20,
         lecturesHeld: 40,
         holidays: [],
+        leaveDays: 0,
       },
     });
     expect(proj.currentPct).toBe(50);
     expect(proj.lecturesNeededForTarget).toBeGreaterThan(0);
+  });
+
+  it("maps working Saturdays Mon→Fri from semester start", () => {
+    const start = new Date(2026, 7, 3); // Mon 3 Aug 2026
+    // 2026-08-08 = 2nd Sat → index 0 → Monday
+    const sat0 = new Date(2026, 7, 8);
+    expect(workingSaturdayIndex(sat0, start)).toBe(0);
+    expect(saturdayMapsToDayOfWeek(0)).toBe(1);
+    // 2026-08-22 = 4th Sat → index 1 → Tuesday
+    const sat1 = new Date(2026, 7, 22);
+    expect(workingSaturdayIndex(sat1, start)).toBe(1);
+    expect(saturdayMapsToDayOfWeek(1)).toBe(2);
+  });
+
+  it("estimates leave impact drop", () => {
+    const slots: TimetableSlot[] = [
+      {
+        id: "1",
+        user_id: "u",
+        day_of_week: 1,
+        slot: 1,
+        subject_text: "Maths",
+      },
+      {
+        id: "2",
+        user_id: "u",
+        day_of_week: 1,
+        slot: 2,
+        subject_text: "Physics",
+      },
+    ];
+    const proj = projectAttendance({
+      slots,
+      prefs: {
+        semesterStart: "2026-08-01",
+        semesterEnd: "2026-12-15",
+        lecturesAttended: 30,
+        lecturesHeld: 40,
+        holidays: [],
+        leaveDays: 2,
+      },
+      today: new Date(2026, 8, 14), // Mon
+    });
+    expect(proj.leaveImpact).not.toBeNull();
+    expect(proj.leaveImpact!.lecturesMissed).toBeGreaterThan(0);
+    expect(proj.leaveImpact!.dropPct).toBeGreaterThan(0);
   });
 });
