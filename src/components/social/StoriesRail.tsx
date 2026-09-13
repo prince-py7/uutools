@@ -58,9 +58,14 @@ export function StoriesRail() {
   }, [reloadLive, tick]);
 
   const active: Story[] = useMemo(() => {
-    if (demoMode) return demoActiveStories(user?.college_id ?? null);
+    if (demoMode) {
+      // Recompute when demo catalog / tick changes (demoActiveStories reads the store).
+      void catalog.stories;
+      void tick;
+      return demoActiveStories(user?.college_id ?? null);
+    }
     return liveStories;
-  }, [demoMode, user?.college_id, liveStories]);
+  }, [demoMode, user?.college_id, liveStories, catalog.stories, tick]);
 
   const profilesById = useMemo(() => {
     const map = new Map<string, Profile>();
