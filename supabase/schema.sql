@@ -51,6 +51,7 @@ create table if not exists public.profiles (
   college_id uuid references public.colleges(id),
   class_id uuid references public.classes(id),
   section_id uuid references public.sections(id),
+  enrollment_id text,
   socials jsonb not null default '{}'::jsonb,
   is_admin boolean not null default false,
   is_disabled boolean not null default false,
@@ -228,6 +229,47 @@ create index if not exists messages_conversation_created_idx
 insert into public.colleges (name, slug, is_active)
 values ('United University', 'united-university', true)
 on conflict (slug) do nothing;
+
+-- Default classes / sections / subjects for United University (onboarding)
+do $$
+declare
+  uu_id uuid;
+  bca_id uuid;
+  btech_id uuid;
+begin
+  select id into uu_id from public.colleges where slug = 'united-university';
+  if uu_id is null then
+    return;
+  end if;
+
+  insert into public.classes (college_id, name)
+  values (uu_id, 'BCA')
+  on conflict (college_id, name) do update set name = excluded.name
+  returning id into bca_id;
+  if bca_id is null then
+    select id into bca_id from public.classes where college_id = uu_id and name = 'BCA';
+  end if;
+
+  insert into public.classes (college_id, name)
+  values (uu_id, 'BTech')
+  on conflict (college_id, name) do update set name = excluded.name
+  returning id into btech_id;
+  if btech_id is null then
+    select id into btech_id from public.classes where college_id = uu_id and name = 'BTech';
+  end if;
+
+  insert into public.sections (class_id, name) values
+    (bca_id, 'A'),
+    (bca_id, 'B'),
+    (btech_id, 'CSE')
+  on conflict (class_id, name) do nothing;
+
+  insert into public.subjects (class_id, name) values
+    (bca_id, 'DBMS'),
+    (bca_id, 'Operating Systems'),
+    (bca_id, 'Mathematics')
+  on conflict (class_id, name) do nothing;
+end $$;
 
 insert into public.app_settings (key, value)
 values
@@ -533,9 +575,10 @@ create policy teacher_delegations_admin on public.teacher_delegations for all to
 create policy teacher_delegations_read_own on public.teacher_delegations for select to authenticated
   using (teacher_id = auth.uid() or public.is_admin());
 
--- Posts: college-scoped
+-- Posts: own posts always readable; peers same college
+drop policy if exists posts_read on public.posts;
 create policy posts_read on public.posts for select to authenticated
-  using (public.same_college(college_id));
+  using (author_id = auth.uid() or public.same_college(college_id));
 create policy posts_insert on public.posts for insert to authenticated
   with check (
     author_id = auth.uid()

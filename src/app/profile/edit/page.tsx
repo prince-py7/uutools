@@ -3,19 +3,25 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth-context";
 import { demoFileToDataUrl } from "@/lib/demo-store";
+import { uploadToSupabase } from "@/lib/supabase/upload";
 import type { Socials } from "@/lib/types";
 
 export default function EditProfilePage() {
   const { user, ready, updateProfile, requestEmailVerification, demoMode } =
     useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [enrollmentId, setEnrollmentId] = useState("");
   const [socials, setSocials] = useState<Socials>({});
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [statusNote, setStatusNote] = useState("");
+  const [formError, setFormError] = useState("");
   const [verifyMsg, setVerifyMsg] = useState("");
   const [verifyError, setVerifyError] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -30,21 +36,35 @@ export default function EditProfilePage() {
     setDisplayName(user.display_name);
     setBio(user.bio);
     setAvatarUrl(user.avatar_url || "");
+    setEnrollmentId(user.enrollment_id || "");
     setSocials(user.socials || {});
   }, [ready, user, router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    await updateProfile({
-      display_name: displayName,
+    if (!user) return;
+    setSaving(true);
+    setFormError("");
+    setStatusNote("Updating profile…");
+    const updated = await updateProfile({
+      display_name: displayName.trim() || user.username,
       bio,
       avatar_url: avatarUrl || null,
+      enrollment_id: enrollmentId.trim() || null,
       socials,
     });
-    setSaved(true);
+    setSaving(false);
+    if (!updated) {
+      setStatusNote("");
+      setFormError("Could not update profile. Try again.");
+      toast.error("Profile update failed");
+      return;
+    }
+    setStatusNote("Profile updated");
+    toast.success("Profile updated");
     setTimeout(() => {
-      if (user) router.push(`/profile/${user.username}`);
-    }, 500);
+      router.push(`/profile/${user.username}`);
+    }, 700);
   }
 
   async function onVerifyEmail() {
@@ -55,6 +75,27 @@ export default function EditProfilePage() {
     setVerifying(false);
     if (res.error) setVerifyError(res.error);
     else setVerifyMsg(res.message || "Done");
+  }
+
+  async function onAvatarChange(file: File | undefined) {
+    if (!file || !user) return;
+    setAvatarError("");
+    if (demoMode) {
+      const res = await demoFileToDataUrl(file, "avatar");
+      if ("error" in res) {
+        setAvatarError(res.error);
+        return;
+      }
+      setAvatarUrl(res.url);
+      return;
+    }
+    const res = await uploadToSupabase(file, "avatar", user.id);
+    if ("error" in res) {
+      setAvatarError(res.error);
+      toast.error(res.error);
+      return;
+    }
+    setAvatarUrl(res.url);
   }
 
   if (!user) return null;
@@ -86,7 +127,7 @@ export default function EditProfilePage() {
               type="button"
               className="btn btn-ghost w-full"
               disabled={verifying}
-              onClick={onVerifyEmail}
+              onClick={() => void onVerifyEmail()}
             >
               {verifying
                 ? "Sending…"
@@ -103,7 +144,7 @@ export default function EditProfilePage() {
           )}
         </section>
 
-        <form className="card space-y-4 p-5" onSubmit={onSubmit}>
+        <form className="card space-y-4 p-5" onSubmit={(e) => void onSubmit(e)}>
           <div>
             <label className="mb-1.5 block text-sm text-[var(--muted)]">
               Display name
@@ -112,7 +153,22 @@ export default function EditProfilePage() {
               className="input"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
+              required
             />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-[var(--muted)]">
+              College ID / Enrollment no.
+            </label>
+            <input
+              className="input"
+              value={enrollmentId}
+              onChange={(e) => setEnrollmentId(e.target.value)}
+              placeholder="e.g. UU24BCA0123"
+            />
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Your student / college ID card number (not the college dropdown).
+            </p>
           </div>
           <div>
             <label className="mb-1.5 block text-sm text-[var(--muted)]">Bio</label>
@@ -130,17 +186,7 @@ export default function EditProfilePage() {
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="mb-2 block w-full text-sm"
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                setAvatarError("");
-                const res = await demoFileToDataUrl(f, "avatar");
-                if ("error" in res) {
-                  setAvatarError(res.error);
-                  return;
-                }
-                setAvatarUrl(res.url);
-              }}
+              onChange={(e) => void onAvatarChange(e.target.files?.[0])}
             />
             {avatarUrl && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -171,8 +217,14 @@ export default function EditProfilePage() {
               </div>
             )
           )}
-          <button className="btn btn-primary w-full" type="submit">
-            {saved ? "Saved" : "Save changes"}
+          {statusNote && (
+            <p className="text-sm text-[var(--popular)]">{statusNote}</p>
+          )}
+          {formError && (
+            <p className="text-sm text-[var(--danger)]">{formError}</p>
+          )}
+          <button className="btn btn-primary w-full" type="submit" disabled={saving}>
+            {saving ? "Updating profile…" : "Save changes"}
           </button>
         </form>
       </div>

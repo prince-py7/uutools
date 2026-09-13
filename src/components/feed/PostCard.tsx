@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Heart,
   MessageCircle,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
+import { useToast } from "@/components/ui/Toast";
 import { buildBadges } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
@@ -19,26 +20,77 @@ import {
   demoToggleFavourite,
   demoToggleLike,
 } from "@/lib/demo-store";
-import type { Post } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import type { Comment, Post, Profile } from "@/lib/types";
 
-export function PostCard({ post }: { post: Post }) {
-  const { user } = useAuth();
+export function PostCard({
+  post: initialPost,
+  author: authorOverride,
+  initialLiked,
+  initialFavoured,
+  initialComments,
+}: {
+  post: Post;
+  author?: Profile | null;
+  initialLiked?: boolean;
+  initialFavoured?: boolean;
+  initialComments?: Comment[];
+}) {
+  const { user, demoMode } = useAuth();
   const catalog = useDemoCatalog();
+  const toast = useToast();
+  const [post, setPost] = useState(initialPost);
   const [showComments, setShowComments] = useState(false);
   const [comment, setComment] = useState("");
+  const [liked, setLiked] = useState(false);
+  const [favoured, setFavoured] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [busy, setBusy] = useState(false);
 
-  const author = catalog.profiles.find((p) => p.id === post.author_id);
-  const liked = Boolean(
-    user &&
-      catalog.likes.some((l) => l.user_id === user.id && l.post_id === post.id)
-  );
-  const favoured = Boolean(
-    user &&
-      catalog.favourites.some(
-        (f) => f.user_id === user.id && f.post_id === post.id
-      )
-  );
-  const comments = catalog.comments.filter((c) => c.post_id === post.id);
+  useEffect(() => {
+    setPost(initialPost);
+  }, [initialPost]);
+
+  useEffect(() => {
+    if (demoMode) {
+      setLiked(
+        Boolean(
+          user &&
+            catalog.likes.some(
+              (l) => l.user_id === user.id && l.post_id === post.id
+            )
+        )
+      );
+      setFavoured(
+        Boolean(
+          user &&
+            catalog.favourites.some(
+              (f) => f.user_id === user.id && f.post_id === post.id
+            )
+        )
+      );
+      setComments(catalog.comments.filter((c) => c.post_id === post.id));
+      return;
+    }
+    setLiked(Boolean(initialLiked));
+    setFavoured(Boolean(initialFavoured));
+    setComments(initialComments || []);
+  }, [
+    demoMode,
+    user,
+    catalog.likes,
+    catalog.favourites,
+    catalog.comments,
+    post.id,
+    initialLiked,
+    initialFavoured,
+    initialComments,
+  ]);
+
+  const author =
+    authorOverride ??
+    catalog.profiles.find((p) => p.id === post.author_id) ??
+    null;
 
   const badges = useMemo(() => {
     if (!author) return [];
@@ -53,6 +105,121 @@ export function PostCard({ post }: { post: Post }) {
   }, [author, catalog, post]);
 
   if (!author) return null;
+
+  async function toggleLike() {
+    if (!user || busy) return;
+    if (demoMode) {
+      demoToggleLike(user.id, post.id);
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const next = !liked;
+    setLiked(next);
+    setPost((p) => ({
+      ...p,
+      like_count: Math.max(0, p.like_count + (next ? 1 : -1)),
+    }));
+    const { error } = next
+      ? await supabase.from("likes").insert({ user_id: user.id, post_id: post.id })
+      : await supabase
+          .from("likes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("post_id", post.id);
+    if (error) {
+      setLiked(!next);
+      setPost((p) => ({
+        ...p,
+        like_count: Math.max(0, p.like_count + (next ? -1 : 1)),
+      }));
+      toast.error(error.message);
+    }
+    setBusy(false);
+  }
+
+  async function toggleFavourite() {
+    if (!user || busy) return;
+    if (demoMode) {
+      demoToggleFavourite(user.id, post.id);
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const next = !favoured;
+    setFavoured(next);
+    const { error } = next
+      ? await supabase
+          .from("favourites")
+          .insert({ user_id: user.id, post_id: post.id })
+      : await supabase
+          .from("favourites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("post_id", post.id);
+    if (error) {
+      setFavoured(!next);
+      toast.error(error.message);
+    }
+    setBusy(false);
+  }
+
+  async function sharePost() {
+    const url = `${window.location.origin}/home?post=${post.id}`;
+    if (user) {
+      if (demoMode) {
+        demoRecordShare(user.id, post.id);
+      } else {
+        const supabase = createClient();
+        await supabase.from("shares").insert({
+          user_id: user.id,
+          post_id: post.id,
+        });
+        setPost((p) => ({ ...p, share_count: p.share_count + 1 }));
+      }
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "UNITIANS", url });
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
+    await navigator.clipboard.writeText(url);
+    toast.success("Link copied");
+  }
+
+  async function submitComment(e: FormEvent) {
+    e.preventDefault();
+    if (!user || !comment.trim() || busy) return;
+    const body = comment.trim();
+    if (demoMode) {
+      demoAddComment(user.id, post.id, body);
+      setComment("");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("comments")
+      .insert({
+        post_id: post.id,
+        author_id: user.id,
+        body,
+      })
+      .select("*")
+      .single();
+    if (error) {
+      toast.error(error.message);
+      setBusy(false);
+      return;
+    }
+    setComments((prev) => [...prev, data as Comment]);
+    setPost((p) => ({ ...p, comment_count: p.comment_count + 1 }));
+    setComment("");
+    setBusy(false);
+  }
 
   return (
     <article className="card overflow-hidden">
@@ -133,8 +300,9 @@ export function PostCard({ post }: { post: Post }) {
       <div className="flex items-center gap-1 border-t border-[var(--line)] px-2 py-1">
         <button
           className={`btn btn-ghost border-0 ${liked ? "text-[var(--danger)]" : ""}`}
-          onClick={() => user && demoToggleLike(user.id, post.id)}
+          onClick={() => void toggleLike()}
           aria-label="Like"
+          disabled={busy}
         >
           <Heart size={18} fill={liked ? "currentColor" : "none"} />
           {post.like_count}
@@ -149,20 +317,7 @@ export function PostCard({ post }: { post: Post }) {
         </button>
         <button
           className="btn btn-ghost border-0"
-          onClick={async () => {
-            const url = `${window.location.origin}/home?post=${post.id}`;
-            if (user) demoRecordShare(user.id, post.id);
-            if (navigator.share) {
-              try {
-                await navigator.share({ title: "UNITIANS", url });
-                return;
-              } catch {
-                /* fall through */
-              }
-            }
-            await navigator.clipboard.writeText(url);
-            alert("Link copied");
-          }}
+          onClick={() => void sharePost()}
           aria-label="Share"
         >
           <Share2 size={18} />
@@ -170,8 +325,9 @@ export function PostCard({ post }: { post: Post }) {
         </button>
         <button
           className={`btn btn-ghost ml-auto border-0 ${favoured ? "text-[var(--accent)]" : ""}`}
-          onClick={() => user && demoToggleFavourite(user.id, post.id)}
+          onClick={() => void toggleFavourite()}
           aria-label="Favourite"
+          disabled={busy}
         >
           <Star size={18} fill={favoured ? "currentColor" : "none"} />
         </button>
@@ -180,30 +336,27 @@ export function PostCard({ post }: { post: Post }) {
       {showComments && (
         <div className="space-y-3 border-t border-[var(--line)] px-4 py-3">
           {comments.map((c) => {
-            const a = catalog.profiles.find((p) => p.id === c.author_id);
+            const a =
+              c.author_id === author.id
+                ? author
+                : catalog.profiles.find((p) => p.id === c.author_id);
             return (
               <div key={c.id} className="text-sm">
-                <span className="font-semibold">{a?.display_name ?? "User"}</span>{" "}
+                <span className="font-semibold">
+                  {a?.display_name ?? (c.author_id === user?.id ? "You" : "User")}
+                </span>{" "}
                 <span className="text-[var(--muted)]">{c.body}</span>
               </div>
             );
           })}
-          <form
-            className="flex gap-2"
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              if (!user || !comment.trim()) return;
-              demoAddComment(user.id, post.id, comment.trim());
-              setComment("");
-            }}
-          >
+          <form className="flex gap-2" onSubmit={(e) => void submitComment(e)}>
             <input
               className="input"
               placeholder="Add a comment…"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
             />
-            <button className="btn btn-primary px-4" type="submit">
+            <button className="btn btn-primary px-4" type="submit" disabled={busy}>
               Post
             </button>
           </form>

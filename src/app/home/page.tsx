@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { StudyFiltersBar } from "@/components/feed/Composer";
@@ -8,9 +8,10 @@ import { PostCard } from "@/components/feed/PostCard";
 import { StoriesRail } from "@/components/social/StoriesRail";
 import { isVerifiedForFilter, sortFeedPosts } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
+import { fetchCollegeFeed, type FeedItem } from "@/lib/feed";
 
 export default function HomePage() {
-  const { user, ready } = useAuth();
+  const { user, ready, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
 
@@ -21,6 +22,10 @@ export default function HomePage() {
   const [sectionId, setSectionId] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [studyType, setStudyType] = useState("");
+  const [liveItems, setLiveItems] = useState<FeedItem[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [feedError, setFeedError] = useState("");
+  const [feedTick, setFeedTick] = useState(0);
 
   useEffect(() => {
     if (!ready) return;
@@ -28,7 +33,68 @@ export default function HomePage() {
     else if (!user.onboarding_complete) router.replace("/onboarding");
   }, [ready, user, router]);
 
-  const posts = useMemo(() => {
+  useEffect(() => {
+    const onUpdate = () => setFeedTick((t) => t + 1);
+    window.addEventListener("uu-feed-updated", onUpdate);
+    return () => window.removeEventListener("uu-feed-updated", onUpdate);
+  }, []);
+
+  const loadLiveFeed = useCallback(async () => {
+    if (!user?.college_id || demoMode) return;
+    setLoadingFeed(true);
+    setFeedError("");
+    const res = await fetchCollegeFeed({
+      collegeId: user.college_id,
+      userId: user.id,
+      classOnly,
+      classId: classOnly ? user.class_id : classId || null,
+      sectionId: sectionId || null,
+      studyOnly,
+      studyType: studyType || undefined,
+      subjectId: subjectId || undefined,
+    });
+    if (res.error) setFeedError(res.error);
+    let items = res.items;
+    if (studyOnly && verifiedOnly) {
+      items = items.filter((i) =>
+        isVerifiedForFilter(i.post, catalog.popularThreshold)
+      );
+    }
+    if (studyOnly && !verifiedOnly) {
+      items = [...items].sort(
+        (a, b) => b.post.like_count - a.post.like_count
+      );
+    } else {
+      const sorted = sortFeedPosts(
+        items.map((i) => i.post),
+        user
+      );
+      const map = new Map(items.map((i) => [i.post.id, i]));
+      items = sorted
+        .map((p) => map.get(p.id))
+        .filter((x): x is FeedItem => Boolean(x));
+    }
+    setLiveItems(items);
+    setLoadingFeed(false);
+  }, [
+    user,
+    demoMode,
+    classOnly,
+    classId,
+    sectionId,
+    studyOnly,
+    studyType,
+    subjectId,
+    verifiedOnly,
+    catalog.popularThreshold,
+  ]);
+
+  useEffect(() => {
+    if (!ready || !user || demoMode) return;
+    void loadLiveFeed();
+  }, [ready, user, demoMode, loadLiveFeed, feedTick]);
+
+  const demoPosts = useMemo(() => {
     let list = catalog.posts.filter((p) => {
       if (user?.college_id && p.college_id !== user.college_id) return false;
       if (classOnly && user?.class_id && p.class_id !== user.class_id) return false;
@@ -93,12 +159,36 @@ export default function HomePage() {
         />
 
         <div className="space-y-4 pb-4">
-          {posts.length === 0 ? (
+          {feedError && (
+            <div className="card p-4 text-sm text-[var(--danger)]">{feedError}</div>
+          )}
+          {demoMode ? (
+            demoPosts.length === 0 ? (
+              <div className="card p-8 text-center text-[var(--muted)]">
+                No posts match these filters yet.
+              </div>
+            ) : (
+              demoPosts.map((p) => <PostCard key={p.id} post={p} />)
+            )
+          ) : loadingFeed ? (
             <div className="card p-8 text-center text-[var(--muted)]">
-              No posts match these filters yet.
+              Loading feed…
+            </div>
+          ) : liveItems.length === 0 ? (
+            <div className="card p-8 text-center text-[var(--muted)]">
+              No posts yet — tap + to share the first one.
             </div>
           ) : (
-            posts.map((p) => <PostCard key={p.id} post={p} />)
+            liveItems.map((item) => (
+              <PostCard
+                key={item.post.id}
+                post={item.post}
+                author={item.author}
+                initialLiked={item.liked}
+                initialFavoured={item.favoured}
+                initialComments={item.comments}
+              />
+            ))
           )}
         </div>
       </div>

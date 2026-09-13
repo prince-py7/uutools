@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoCreatePost,
@@ -8,11 +8,23 @@ import {
   getDemoState,
   saveDemoState,
 } from "@/lib/demo-store";
-import type { MediaType, PostKind, StudyType } from "@/lib/types";
+import { notifyFeedUpdated } from "@/lib/feed";
+import { createClient } from "@/lib/supabase/client";
+import { uploadToSupabase } from "@/lib/supabase/upload";
+import { useToast } from "@/components/ui/Toast";
+import type {
+  ClassRow,
+  MediaType,
+  PostKind,
+  Section,
+  StudyType,
+  Subject,
+} from "@/lib/types";
 
 export function Composer({ onPosted }: { onPosted?: () => void }) {
-  const { user } = useAuth();
+  const { user, demoMode } = useAuth();
   const catalog = useDemoCatalog();
+  const toast = useToast();
   const [caption, setCaption] = useState("");
   const [kind, setKind] = useState<PostKind>("social");
   const [studyType, setStudyType] = useState<StudyType>("unit");
@@ -20,64 +32,159 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [isOfficialRole, setIsOfficialRole] = useState(false);
 
-  const subjects = useMemo(
-    () => catalog.subjects.filter((s) => s.class_id === user?.class_id),
-    [catalog.subjects, user?.class_id]
-  );
-
-  if (!user) return null;
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!user || !caption.trim()) return;
-    setBusy(true);
-    setError("");
-
-    let media_url: string | null = null;
-    let media_type: MediaType = kind === "study" ? "pdf" : "none";
-
-    if (file) {
-      const uploadKind = kind === "study" ? "study-file" : "post-image";
-      const res = await demoFileToDataUrl(file, uploadKind);
-      if ("error" in res) {
-        setError(res.error);
-        setBusy(false);
-        return;
-      }
-      media_url = res.url;
-      media_type = res.mediaType;
-    } else if (kind === "social") {
-      media_type = "none";
+  useEffect(() => {
+    if (!user?.class_id) {
+      setSubjects([]);
+      setIsOfficialRole(false);
+      return;
     }
-
-    const isOfficial =
-      kind === "study" &&
-      (user.is_admin ||
+    if (demoMode) {
+      setSubjects(catalog.subjects.filter((s) => s.class_id === user.class_id));
+      setIsOfficialRole(
         catalog.roles.some(
           (r) =>
             r.user_id === user.id &&
             r.class_id === user.class_id &&
             (r.role === "cr" || r.role === "professor")
-        ));
+        )
+      );
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const [subRes, roleRes] = await Promise.all([
+        supabase.from("subjects").select("*").eq("class_id", user.class_id!),
+        supabase
+          .from("class_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("class_id", user.class_id!),
+      ]);
+      if (cancelled) return;
+      setSubjects((subRes.data as Subject[]) || []);
+      setIsOfficialRole(
+        ((roleRes.data as { role: string }[]) || []).some(
+          (r) => r.role === "cr" || r.role === "professor"
+        )
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, demoMode, catalog.subjects, catalog.roles]);
 
-    demoCreatePost({
-      author_id: user.id,
-      college_id: user.college_id || catalog.colleges[0]?.id,
-      class_id: user.class_id,
-      section_id: user.section_id,
-      kind,
-      study_type: kind === "study" ? studyType : null,
-      subject_id: kind === "study" ? subjectId || null : null,
-      caption: caption.trim(),
-      media_url,
-      media_type,
-      is_official_verified: Boolean(isOfficial),
-    });
-    setCaption("");
-    setFile(null);
-    setBusy(false);
-    onPosted?.();
+  const subjectOptions = useMemo(() => subjects, [subjects]);
+
+  if (!user) return null;
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    if (!caption.trim()) {
+      setError("Write a caption before sharing.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+
+    let media_url: string | null = null;
+    let media_type: MediaType = kind === "study" ? "pdf" : "none";
+    const uploadKind = kind === "study" ? "study-file" : "post-image";
+
+    try {
+      if (file) {
+        if (demoMode) {
+          const res = await demoFileToDataUrl(file, uploadKind);
+          if ("error" in res) {
+            setError(res.error);
+            setBusy(false);
+            return;
+          }
+          media_url = res.url;
+          media_type = res.mediaType;
+        } else {
+          const res = await uploadToSupabase(file, uploadKind, user.id);
+          if ("error" in res) {
+            setError(res.error);
+            toast.error(res.error);
+            setBusy(false);
+            return;
+          }
+          media_url = res.url;
+          media_type = res.mediaType;
+        }
+      } else if (kind === "social") {
+        media_type = "none";
+      }
+
+      const isOfficial =
+        kind === "study" && (user.is_admin || isOfficialRole);
+
+      if (demoMode) {
+        const collegeId = user.college_id || catalog.colleges[0]?.id;
+        if (!collegeId) {
+          setError("Pick a college in onboarding before posting.");
+          setBusy(false);
+          return;
+        }
+        demoCreatePost({
+          author_id: user.id,
+          college_id: collegeId,
+          class_id: user.class_id,
+          section_id: user.section_id,
+          kind,
+          study_type: kind === "study" ? studyType : null,
+          subject_id: kind === "study" ? subjectId || null : null,
+          caption: caption.trim(),
+          media_url,
+          media_type,
+          is_official_verified: Boolean(isOfficial),
+        });
+      } else {
+        if (!user.college_id) {
+          setError("Finish onboarding (college) before posting.");
+          toast.error("Finish onboarding before posting");
+          setBusy(false);
+          return;
+        }
+        const supabase = createClient();
+        const { error: insertError } = await supabase.from("posts").insert({
+          author_id: user.id,
+          college_id: user.college_id,
+          class_id: user.class_id,
+          section_id: user.section_id,
+          kind,
+          study_type: kind === "study" ? studyType : null,
+          subject_id: kind === "study" ? subjectId || null : null,
+          caption: caption.trim(),
+          media_url,
+          media_type,
+          is_official_verified: Boolean(isOfficial),
+        });
+        if (insertError) {
+          setError(insertError.message);
+          toast.error(insertError.message);
+          setBusy(false);
+          return;
+        }
+      }
+
+      setCaption("");
+      setFile(null);
+      toast.success("Post shared");
+      notifyFeedUpdated();
+      onPosted?.();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to share post";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -117,7 +224,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
               onChange={(e) => setSubjectId(e.target.value)}
             >
               <option value="">Subject</option>
-              {subjects.map((s) => (
+              {subjectOptions.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
@@ -145,7 +252,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       </div>
       {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <button className="btn btn-primary ml-auto" type="submit" disabled={busy}>
-        {busy ? "Posting…" : "Share"}
+        {busy ? "Sharing…" : "Share"}
       </button>
     </form>
   );
@@ -183,13 +290,65 @@ export function StudyFiltersBar({
   setStudyType: (v: string) => void;
 }) {
   const catalog = useDemoCatalog();
-  const { user } = useAuth();
+  const { user, demoMode } = useAuth();
+  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
 
-  const classes = catalog.classes.filter(
-    (c) => c.college_id === (user?.college_id || catalog.colleges[0]?.id)
-  );
-  const sections = catalog.sections.filter((s) => s.class_id === classId);
-  const subjects = catalog.subjects.filter((s) => s.class_id === classId);
+  useEffect(() => {
+    if (demoMode) {
+      setClasses(
+        catalog.classes.filter(
+          (c) => c.college_id === (user?.college_id || catalog.colleges[0]?.id)
+        )
+      );
+      return;
+    }
+    if (!user?.college_id) {
+      setClasses([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("classes")
+        .select("*")
+        .eq("college_id", user.college_id!)
+        .order("name");
+      if (!cancelled) setClasses((data as ClassRow[]) || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [demoMode, catalog.classes, catalog.colleges, user?.college_id]);
+
+  useEffect(() => {
+    if (!classId) {
+      setSections([]);
+      setSubjects([]);
+      return;
+    }
+    if (demoMode) {
+      setSections(catalog.sections.filter((s) => s.class_id === classId));
+      setSubjects(catalog.subjects.filter((s) => s.class_id === classId));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const [secRes, subRes] = await Promise.all([
+        supabase.from("sections").select("*").eq("class_id", classId).order("name"),
+        supabase.from("subjects").select("*").eq("class_id", classId).order("name"),
+      ]);
+      if (cancelled) return;
+      setSections((secRes.data as Section[]) || []);
+      setSubjects((subRes.data as Subject[]) || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [classId, demoMode, catalog.sections, catalog.subjects]);
 
   return (
     <div className="sticky top-0 z-20 space-y-3 border-b border-[var(--line)] bg-black/90 px-3 py-3 backdrop-blur-md">
