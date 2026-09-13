@@ -245,15 +245,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         >
           <Menu size={22} strokeWidth={1.75} />
         </button>
-        <Link href="/home" className="flex items-center gap-2 md:hidden">
-          <Image
-            src="/brand/unitians-logo.png"
-            alt="Unitians"
-            width={22}
-            height={22}
-            className="object-contain"
-          />
-          <span className="text-[15px] font-semibold tracking-tight">Unitians</span>
+                <Link href="/home" className="flex items-center gap-2 md:hidden">
+          <span className="text-[15px] font-bold tracking-[0.08em]">UNITIANS</span>
         </Link>
         <div className="flex items-center gap-0.5">
           <Link

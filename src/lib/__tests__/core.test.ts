@@ -223,3 +223,67 @@ describe("upload MIME / size", () => {
     ).toBe(true);
   });
 });
+
+
+import {
+  isLectureSubject,
+  isFirstOrThirdSaturday,
+  lecturesOnDate,
+  projectAttendance,
+  toDateKey,
+} from "../attendance";
+import type { TimetableSlot } from "../types";
+
+describe("attendance helpers", () => {
+  it("treats Library / empty as no class", () => {
+    expect(isLectureSubject("")).toBe(false);
+    expect(isLectureSubject("Library")).toBe(false);
+    expect(isLectureSubject("Maths")).toBe(true);
+  });
+
+  it("flags 1st and 3rd Saturdays", () => {
+    // 2026-09-05 = 1st Sat, 2026-09-19 = 3rd Sat, 2026-09-12 = 2nd Sat
+    expect(isFirstOrThirdSaturday(new Date(2026, 8, 5))).toBe(true);
+    expect(isFirstOrThirdSaturday(new Date(2026, 8, 19))).toBe(true);
+    expect(isFirstOrThirdSaturday(new Date(2026, 8, 12))).toBe(false);
+  });
+
+  it("counts weekday lectures from timetable and skips holidays", () => {
+    const slots: TimetableSlot[] = [
+      {
+        id: "1",
+        user_id: "u",
+        day_of_week: 1,
+        slot: 1,
+        subject_text: "Maths",
+      },
+      {
+        id: "2",
+        user_id: "u",
+        day_of_week: 1,
+        slot: 2,
+        subject_text: "Library",
+      },
+    ];
+    // Monday 2026-09-14
+    const mon = new Date(2026, 8, 14);
+    expect(lecturesOnDate(mon, slots, new Set())).toBe(1);
+    expect(lecturesOnDate(mon, slots, new Set([toDateKey(mon)]))).toBe(0);
+  });
+
+  it("projects lectures needed for 75%", () => {
+    const slots: TimetableSlot[] = [];
+    const proj = projectAttendance({
+      slots,
+      prefs: {
+        semesterStart: "2026-08-01",
+        semesterEnd: "",
+        lecturesAttended: 20,
+        lecturesHeld: 40,
+        holidays: [],
+      },
+    });
+    expect(proj.currentPct).toBe(50);
+    expect(proj.lecturesNeededForTarget).toBeGreaterThan(0);
+  });
+});

@@ -236,8 +236,8 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       <div>
         <label className="mb-1 block text-xs text-[var(--muted)]">
           {kind === "study"
-            ? "Attach image or PDF (max 10 MB)"
-            : "Optional image (jpeg/png/webp/gif, max 10 MB)"}
+            ? "Attach image or PDF (max 10 MB; large photos auto-compress)"
+            : "Optional image (jpeg/png/webp/gif, max 10 MB; auto-compress)"}
         </label>
         <input
           type="file"

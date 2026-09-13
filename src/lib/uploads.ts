@@ -63,3 +63,32 @@ export function mediaTypeFromMime(
   if (IMAGE_MIMES.includes(mime as (typeof IMAGE_MIMES)[number])) return "image";
   return "none";
 }
+
+export function maxBytesForKind(kind: UploadKind): number {
+  return MAX[kind];
+}
+
+/**
+ * Compress images (when needed) then validate. Photos up to ~25 MB raw are
+ * accepted and shrunk under the kind limit (post/study: 10 MB, avatar: 2 MB).
+ */
+export async function prepareUploadFile(
+  file: File,
+  kind: UploadKind
+): Promise<{ file: File; mediaType: "image" | "pdf" | "video" } | { error: string }> {
+  let next = file;
+  if (file.type.startsWith("image/") && file.type !== "image/gif") {
+    const { compressImageFile, compressTargetBytes } = await import(
+      "@/lib/image-compress"
+    );
+    const target = Math.min(compressTargetBytes(kind), MAX[kind]);
+    if (file.size > target || file.size > MAX[kind]) {
+      const compressed = await compressImageFile(file, { maxBytes: target });
+      if ("error" in compressed) return { error: compressed.error };
+      next = compressed.file;
+    }
+  }
+  const v = validateUpload(next, kind);
+  if (!v.ok) return { error: v.error };
+  return { file: next, mediaType: v.mediaType };
+}
