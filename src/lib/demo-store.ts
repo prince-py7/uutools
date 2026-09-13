@@ -20,7 +20,7 @@ import { validateUsername } from "./username";
 import { storyExpiresAt, isStoryActive } from "./story";
 import { validateTimetableSlot } from "./timetable";
 import { canSendVerification } from "./verification";
-import { validateUpload, type UploadKind } from "./uploads";
+import type { UploadKind } from "./uploads";
 
 const KEY = "uu-community-demo-v3";
 
@@ -826,15 +826,16 @@ export async function demoFileToDataUrl(
   file: File,
   kind: UploadKind
 ): Promise<{ url: string; mediaType: "image" | "pdf" | "video" } | { error: string }> {
-  const v = validateUpload(file, kind);
-  if (!v.ok) return { error: v.error };
+  const { prepareUploadFile } = await import("./uploads");
+  const prepared = await prepareUploadFile(file, kind);
+  if ("error" in prepared) return { error: prepared.error };
   const url = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => reject(new Error("Read failed"));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(prepared.file);
   });
-  return { url, mediaType: v.mediaType };
+  return { url, mediaType: prepared.mediaType };
 }
 
 export { id as newId };

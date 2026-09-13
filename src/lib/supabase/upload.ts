@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { validateUpload, type UploadKind } from "@/lib/uploads";
+import { prepareUploadFile, type UploadKind } from "@/lib/uploads";
 
 const BUCKET: Record<UploadKind, string> = {
   avatar: "avatars",
@@ -14,16 +14,18 @@ export async function uploadToSupabase(
   kind: UploadKind,
   userId: string
 ): Promise<{ url: string; mediaType: "image" | "pdf" | "video" } | { error: string }> {
-  const v = validateUpload(file, kind);
-  if (!v.ok) return { error: v.error };
+  const prepared = await prepareUploadFile(file, kind);
+  if ("error" in prepared) return { error: prepared.error };
   const supabase = createClient();
-  const ext = file.name.split(".").pop() || "bin";
+  const ext = prepared.file.name.split(".").pop() || "bin";
   const path = `${userId}/${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET[kind]).upload(path, file, {
-    contentType: file.type,
-    upsert: false,
-  });
+  const { error } = await supabase.storage
+    .from(BUCKET[kind])
+    .upload(path, prepared.file, {
+      contentType: prepared.file.type,
+      upsert: false,
+    });
   if (error) return { error: error.message };
   const { data } = supabase.storage.from(BUCKET[kind]).getPublicUrl(path);
-  return { url: data.publicUrl, mediaType: v.mediaType };
+  return { url: data.publicUrl, mediaType: prepared.mediaType };
 }

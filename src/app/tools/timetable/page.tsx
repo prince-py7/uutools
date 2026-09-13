@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, MoreVertical, Pencil, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
@@ -11,24 +12,44 @@ import { DAYS as DAY_NS, SLOTS as SLOT_NS } from "@/lib/timetable";
 import type { TimetableSlot } from "@/lib/types";
 
 const DAYS = [
-  { n: 1, label: "Monday" },
-  { n: 2, label: "Tuesday" },
-  { n: 3, label: "Wednesday" },
-  { n: 4, label: "Thursday" },
-  { n: 5, label: "Friday" },
+  { n: 1, label: "Mon", full: "Monday" },
+  { n: 2, label: "Tue", full: "Tuesday" },
+  { n: 3, label: "Wed", full: "Wednesday" },
+  { n: 4, label: "Thu", full: "Thursday" },
+  { n: 5, label: "Fri", full: "Friday" },
 ];
 
 const SLOTS = [...SLOT_NS];
+
+function emptyGrid(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const d of DAY_NS) {
+    for (const s of SLOT_NS) map[`${d}-${s}`] = "";
+  }
+  return map;
+}
+
+function slotsToGrid(rows: TimetableSlot[]): Record<string, string> {
+  const map = emptyGrid();
+  for (const row of rows) {
+    map[`${row.day_of_week}-${row.slot}`] = row.subject_text;
+  }
+  return map;
+}
 
 export default function TimetablePage() {
   const { user, ready, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
   const toast = useToast();
-  const [day, setDay] = useState(1);
   const [error, setError] = useState("");
   const [slots, setSlots] = useState<TimetableSlot[]>([]);
+  const [draft, setDraft] = useState<Record<string, string>>(emptyGrid());
   const [loading, setLoading] = useState(!demoMode);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -38,7 +59,9 @@ export default function TimetablePage() {
   useEffect(() => {
     if (!user) return;
     if (demoMode) {
-      setSlots(catalog.timetables.filter((t) => t.user_id === user.id));
+      const mine = catalog.timetables.filter((t) => t.user_id === user.id);
+      setSlots(mine);
+      if (!editing) setDraft(slotsToGrid(mine));
       setLoading(false);
       return;
     }
@@ -48,68 +71,88 @@ export default function TimetablePage() {
       if (cancelled) return;
       if (res.error) toast.error(res.error);
       setSlots(res.slots);
+      if (!editing) setDraft(slotsToGrid(res.slots));
       setLoading(false);
     });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, demoMode, catalog.timetables, toast]);
 
-  const grid = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const row of slots) {
-      map[`${row.day_of_week}-${row.slot}`] = row.subject_text;
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
     }
-    return map;
-  }, [slots]);
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
-  async function setCell(
-    dayOfWeek: number,
-    slot: number,
-    subject_text: string
-  ) {
+  const grid = useMemo(
+    () => (editing ? draft : slotsToGrid(slots)),
+    [editing, draft, slots]
+  );
+
+  function startEdit() {
+    setDraft(slotsToGrid(slots));
+    setEditing(true);
+    setMenuOpen(false);
+  }
+
+  function cancelEdit() {
+    setDraft(slotsToGrid(slots));
+    setEditing(false);
+    setError("");
+    setMenuOpen(false);
+  }
+
+  function setDraftCell(dayOfWeek: number, slot: number, value: string) {
+    setDraft((prev) => ({ ...prev, [`${dayOfWeek}-${slot}`]: value }));
+  }
+
+  async function saveAll() {
     if (!user) return;
-    if (!DAY_NS.includes(dayOfWeek as (typeof DAY_NS)[number])) return;
+    setSaving(true);
+    setError("");
+    try {
+      for (const d of DAY_NS) {
+        for (const s of SLOT_NS) {
+          const key = `${d}-${s}`;
+          const subject_text = (draft[key] || "").trim();
+          const prev =
+            slots.find((r) => r.day_of_week === d && r.slot === s)
+              ?.subject_text || "";
+          if (prev === subject_text) continue;
 
-    if (demoMode) {
-      const res = demoSaveTimetableSlot(
-        user.id,
-        dayOfWeek,
-        slot,
-        subject_text
-      );
-      if (res.error) setError(res.error);
-      else {
-        setError("");
-        setSlots(catalog.timetables.filter((t) => t.user_id === user.id));
+          if (demoMode) {
+            const res = demoSaveTimetableSlot(user.id, d, s, subject_text);
+            if (res.error) throw new Error(res.error);
+          } else {
+            const res = await saveTimetableSlot(user.id, d, s, subject_text);
+            if (res.error) throw new Error(res.error);
+          }
+        }
       }
-      return;
+      if (demoMode) {
+        const mine = catalog.timetables.filter((t) => t.user_id === user.id);
+        setSlots(mine);
+        setDraft(slotsToGrid(mine));
+      } else {
+        const res = await fetchTimetable(user.id);
+        if (res.error) throw new Error(res.error);
+        setSlots(res.slots);
+        setDraft(slotsToGrid(res.slots));
+      }
+      setEditing(false);
+      toast.success("Timetable saved");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+      setMenuOpen(false);
     }
-
-    setSlots((prev) => {
-      const next = prev.filter(
-        (r) => !(r.day_of_week === dayOfWeek && r.slot === slot)
-      );
-      next.push({
-        id: `${user.id}-${dayOfWeek}-${slot}`,
-        user_id: user.id,
-        day_of_week: dayOfWeek,
-        slot,
-        subject_text,
-      });
-      return next;
-    });
-
-    const res = await saveTimetableSlot(
-      user.id,
-      dayOfWeek,
-      slot,
-      subject_text
-    );
-    if (res.error) {
-      setError(res.error);
-      toast.error(res.error);
-    } else setError("");
   }
 
   if (!user) return null;
@@ -117,81 +160,148 @@ export default function TimetablePage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl space-y-4 px-3 py-6 md:px-0">
-        <h1 className="text-2xl font-bold">Timetable</h1>
-        <p className="text-sm text-[var(--muted)]">
-          Monday–Friday · 7 slots — set your own subjects
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Timetable</h1>
+            <p className="text-sm text-[var(--muted)]">
+              Monday–Friday · 7 slots · Library = no class
+            </p>
+          </div>
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Timetable options"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <MoreVertical size={20} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-[var(--line)] bg-[#121212] py-1 shadow-xl">
+                {!editing ? (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-[#1a1a1a]"
+                    onClick={startEdit}
+                  >
+                    <Pencil size={16} /> Edit
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-[#1a1a1a]"
+                      disabled={saving}
+                      onClick={() => void saveAll()}
+                    >
+                      <Check size={16} /> Save
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-[var(--muted)] hover:bg-[#1a1a1a]"
+                      disabled={saving}
+                      onClick={cancelEdit}
+                    >
+                      <X size={16} /> Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
         {loading && (
           <p className="text-sm text-[var(--muted)]">Loading timetable…</p>
         )}
+        {editing && (
+          <p className="rounded-lg border border-[var(--line)] bg-[#121212] px-3 py-2 text-xs text-[var(--muted)]">
+            Editing — use ⋮ → <b>Save</b> when done. Type <b>Library</b> for no
+            class.
+          </p>
+        )}
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {DAYS.map((d) => (
-            <button
-              key={d.n}
-              className={`h-9 shrink-0 rounded-full px-4 text-sm font-semibold ${
-                day === d.n
-                  ? "bg-[var(--accent)] text-white"
-                  : "border border-[var(--line)] text-[var(--muted)]"
-              }`}
-              onClick={() => setDay(d.n)}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="card divide-y divide-[var(--line)]">
-          {SLOTS.map((slot) => (
-            <div key={slot} className="flex items-center gap-3 p-3">
-              <div className="w-16 shrink-0 text-sm font-semibold text-[var(--muted)]">
-                Slot {slot}
-              </div>
-              <input
-                className="input"
-                placeholder="Subject name"
-                value={grid[`${day}-${slot}`] || ""}
-                onChange={(e) => void setCell(day, slot, e.target.value)}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="hidden overflow-x-auto md:block">
-          <table className="card w-full min-w-[700px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                <th className="p-3">Slot</th>
-                {DAYS.map((d) => (
-                  <th key={d.n} className="p-3">
-                    {d.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {SLOTS.map((slot) => (
-                <tr key={slot} className="border-b border-[var(--line)]">
-                  <td className="p-3 font-semibold text-[var(--muted)]">
-                    {slot}
-                  </td>
+        <div className="tt-rotate-wrap">
+          <div className="tt-rotate-inner">
+            <table className="card w-full border-collapse text-[11px] sm:text-xs md:min-w-[640px] md:text-sm">
+              <thead>
+                <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
+                  <th className="sticky left-0 z-10 bg-black p-2 md:p-3">Slot</th>
                   {DAYS.map((d) => (
-                    <td key={d.n} className="p-2">
-                      <input
-                        className="input h-9"
-                        value={grid[`${d.n}-${slot}`] || ""}
-                        onChange={(e) =>
-                          void setCell(d.n, slot, e.target.value)
-                        }
-                      />
-                    </td>
+                    <th key={d.n} className="p-2 md:p-3" title={d.full}>
+                      <span className="md:hidden">{d.label}</span>
+                      <span className="hidden md:inline">{d.full}</span>
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {SLOTS.map((slot) => (
+                  <tr key={slot} className="border-b border-[var(--line)]">
+                    <td className="sticky left-0 z-10 bg-black p-2 font-semibold text-[var(--muted)] md:p-3">
+                      {slot}
+                    </td>
+                    {DAYS.map((d) => {
+                      const val = grid[`${d.n}-${slot}`] || "";
+                      return (
+                        <td key={d.n} className="p-1.5 md:p-2">
+                          {editing ? (
+                            <input
+                              className="input h-8 px-1.5 text-[11px] md:h-9 md:text-sm"
+                              value={val}
+                              placeholder="—"
+                              maxLength={80}
+                              onChange={(e) =>
+                                setDraftCell(d.n, slot, e.target.value)
+                              }
+                            />
+                          ) : (
+                            <div
+                              className={`min-h-8 rounded-md px-1.5 py-1.5 ${
+                                val
+                                  ? "bg-[#141414] text-[var(--text)]"
+                                  : "text-[var(--muted)]"
+                              }`}
+                              title={val || "Empty"}
+                            >
+                              {val || "—"}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        <p className="text-center text-[11px] text-[var(--muted)] md:hidden">
+          Grid is rotated to fit one screen — rotate the phone if needed.
+        </p>
+
+        {editing && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn btn-primary flex-1"
+              disabled={saving}
+              onClick={() => void saveAll()}
+            >
+              {saving ? "Saving…" : "Save timetable"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={saving}
+              onClick={cancelEdit}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     </AppShell>
   );
