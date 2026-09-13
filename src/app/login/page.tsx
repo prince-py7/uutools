@@ -77,7 +77,7 @@ export default function LoginPage() {
 
           {demoMode && (
             <div className="mt-5 border-t border-[var(--line)] pt-4 text-xs leading-relaxed text-[var(--muted)]">
-              <p className="mb-1 font-medium text-[var(--text)]">Demo</p>
+              <p className="mb-1 font-medium text-[var(--text)]">Try demo login</p>
               <p>aarav / password</p>
               <p>riya_cr / password</p>
               <p>admin / admin123</p>

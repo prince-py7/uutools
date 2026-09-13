@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingInline } from "@/components/ui/Loading";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, MoreVertical, Pencil, X } from "lucide-react";
@@ -213,7 +215,7 @@ export default function TimetablePage() {
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
         {loading && (
-          <p className="text-sm text-[var(--muted)]">Loading timetable…</p>
+          <LoadingInline label="Loading timetable…" />
         )}
         {editing && (
           <p className="rounded-lg border border-[var(--line)] bg-[#121212] px-3 py-2 text-xs text-[var(--muted)]">

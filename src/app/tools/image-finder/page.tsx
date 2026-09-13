@@ -1,5 +1,7 @@
 "use client";
 
+import { Spinner } from "@/components/ui/Loading";
+
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
@@ -167,7 +169,10 @@ export default function ImageFinderPage() {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            Loading Image {Math.floor(progress)}%
+            <>
+              <Spinner size={16} />
+              Loading image {Math.floor(progress)}%
+            </>
           </div>
         )}
 

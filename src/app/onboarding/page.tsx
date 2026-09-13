@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingInline } from "@/components/ui/Loading";
+
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
@@ -59,12 +61,14 @@ export default function OnboardingPage() {
         setSections((secRes.data as Section[]) || []);
         if (!(colRes.data || []).length) {
           setError(
-            "No colleges in database yet. Run supabase/seed_uu.sql in Supabase SQL Editor."
+            "No colleges are available yet. Please check back shortly or contact an admin."
           );
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load colleges");
+          setError(
+            "Could not load colleges right now. Please try again in a moment."
+          );
         }
       } finally {
         if (!cancelled) setLoadingDir(false);
@@ -109,7 +113,7 @@ export default function OnboardingPage() {
     setSaving(false);
     if (!updated) {
       setError(
-        "Could not save profile. Make sure schema.sql is applied and class/section IDs exist in Supabase."
+        "Could not save your profile. Please try again or contact support."
       );
       return;
     }
@@ -127,7 +131,7 @@ export default function OnboardingPage() {
           classmate posts first.
         </p>
         {loadingDir ? (
-          <p className="mt-6 text-sm text-[var(--muted)]">Loading colleges…</p>
+          <LoadingInline label="Loading colleges…" />
         ) : (
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
             <div>
@@ -175,8 +179,7 @@ export default function OnboardingPage() {
               </select>
               {collegeId && filteredClasses.length === 0 && (
                 <p className="mt-1 text-xs text-[var(--danger)]">
-                  No classes for this college. Run seed_uu.sql or add classes in
-                  Admin.
+                  No classes for this college yet. Ask an admin to add them.
                 </p>
               )}
             </div>

@@ -162,3 +162,35 @@ export type FeedFilters = {
   subjectId: string | null;
   studyType: StudyType | null;
 };
+
+export type NotificationType = "class_announcement" | "system";
+
+export type AppNotification = {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  ref_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type ClassAnnouncement = {
+  id: string;
+  class_id: string;
+  section_id: string | null;
+  author_id: string;
+  body: string;
+  image_url: string | null;
+  created_at: string;
+};
+
+export type PushSubscriptionRow = {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  created_at: string;
+};

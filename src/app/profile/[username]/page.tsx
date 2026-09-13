@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingState } from "@/components/ui/Loading";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -210,9 +212,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="card m-4 p-8 text-center text-[var(--muted)]">
-          Loading profile…
-        </div>
+        <LoadingState label="Loading profile…" />
       </AppShell>
     );
   }

@@ -26,7 +26,8 @@ import {
   verificationReminder,
 } from "../verification";
 import { validateUpload } from "../uploads";
-import type { Post, Profile } from "../types";
+import { canSendClassAnnouncements } from "../announcements";
+import type { ClassRole, Post, Profile } from "../types";
 
 describe("username uniqueness", () => {
   it("normalizes and validates", () => {
@@ -335,5 +336,81 @@ describe("attendance helpers", () => {
     expect(proj.leaveImpact).not.toBeNull();
     expect(proj.leaveImpact!.lecturesMissed).toBeGreaterThan(0);
     expect(proj.leaveImpact!.dropPct).toBeGreaterThan(0);
+  });
+
+  it("accepts custom leaveDays beyond chip presets", () => {
+    const slots: TimetableSlot[] = [
+      {
+        id: "1",
+        user_id: "u",
+        day_of_week: 1,
+        slot: 1,
+        subject_text: "Maths",
+      },
+    ];
+    const proj = projectAttendance({
+      slots,
+      prefs: {
+        semesterStart: "2026-08-01",
+        semesterEnd: "2026-12-15",
+        lecturesAttended: 30,
+        lecturesHeld: 40,
+        holidays: [],
+        leaveDays: 7,
+      },
+      today: new Date(2026, 8, 14),
+    });
+    expect(proj.leaveImpact?.leaveDays).toBe(7);
+  });
+});
+
+function stubProfile(over: Partial<Profile> = {}): Profile {
+  return {
+    id: "u1",
+    username: "student",
+    email: "s@test.com",
+    email_verified: true,
+    display_name: "Student",
+    bio: "",
+    avatar_url: null,
+    college_id: "col1",
+    class_id: "class1",
+    section_id: "sec1",
+    enrollment_id: null,
+    socials: {},
+    is_admin: false,
+    is_disabled: false,
+    onboarding_complete: true,
+    ...over,
+  };
+}
+
+describe("class announcements gate", () => {
+  it("allows admin always", () => {
+    expect(canSendClassAnnouncements(stubProfile({ is_admin: true }), [])).toBe(
+      true
+    );
+  });
+
+  it("allows CR or professor for matching class", () => {
+    const roles: ClassRole[] = [
+      {
+        id: "r1",
+        user_id: "u1",
+        class_id: "class1",
+        section_id: null,
+        role: "cr",
+      },
+    ];
+    expect(canSendClassAnnouncements(stubProfile(), roles)).toBe(true);
+    expect(
+      canSendClassAnnouncements(stubProfile(), [
+        { ...roles[0], role: "professor" },
+      ])
+    ).toBe(true);
+  });
+
+  it("denies classmates without a staff role", () => {
+    expect(canSendClassAnnouncements(stubProfile(), [])).toBe(false);
   });
 });

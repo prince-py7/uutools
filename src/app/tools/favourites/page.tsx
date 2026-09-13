@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingInline } from "@/components/ui/Loading";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
@@ -108,7 +110,7 @@ export default function FavouritesPage() {
         </p>
         <div className="space-y-4">
           {loading && (
-            <p className="text-sm text-[var(--muted)]">Loading favourites…</p>
+            <LoadingInline label="Loading favourites…" />
           )}
           {!loading &&
             items.map((item) => (
