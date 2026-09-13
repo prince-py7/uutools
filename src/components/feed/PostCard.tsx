@@ -21,7 +21,14 @@ import {
   demoToggleLike,
 } from "@/lib/demo-store";
 import { createClient } from "@/lib/supabase/client";
-import type { Comment, Post, Profile } from "@/lib/types";
+import type {
+  ClassRole,
+  ClassRow,
+  Comment,
+  Post,
+  Profile,
+  Section,
+} from "@/lib/types";
 
 export function PostCard({
   post: initialPost,
@@ -29,12 +36,20 @@ export function PostCard({
   initialLiked,
   initialFavoured,
   initialComments,
+  roles: rolesOverride,
+  classes: classesOverride,
+  sections: sectionsOverride,
+  popularThreshold: thresholdOverride,
 }: {
   post: Post;
   author?: Profile | null;
   initialLiked?: boolean;
   initialFavoured?: boolean;
   initialComments?: Comment[];
+  roles?: ClassRole[];
+  classes?: ClassRow[];
+  sections?: Section[];
+  popularThreshold?: number;
 }) {
   const { user, demoMode } = useAuth();
   const catalog = useDemoCatalog();
@@ -96,13 +111,24 @@ export function PostCard({
     if (!author) return [];
     return buildBadges({
       profile: author,
-      roles: catalog.roles,
-      classes: catalog.classes,
-      sections: catalog.sections,
+      roles: rolesOverride ?? catalog.roles,
+      classes: classesOverride ?? catalog.classes,
+      sections: sectionsOverride ?? catalog.sections,
       post,
-      popularThreshold: catalog.popularThreshold,
+      popularThreshold: thresholdOverride ?? catalog.popularThreshold,
     });
-  }, [author, catalog, post]);
+  }, [
+    author,
+    catalog.roles,
+    catalog.classes,
+    catalog.sections,
+    catalog.popularThreshold,
+    rolesOverride,
+    classesOverride,
+    sectionsOverride,
+    thresholdOverride,
+    post,
+  ]);
 
   if (!author) return null;
 
