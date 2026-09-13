@@ -41,6 +41,8 @@ export type Profile = {
   college_id: string | null;
   class_id: string | null;
   section_id: string | null;
+  /** Student college / enrollment ID (roll number), not the colleges.id UUID. */
+  enrollment_id: string | null;
   socials: Socials;
   is_admin: boolean;
   is_disabled: boolean;

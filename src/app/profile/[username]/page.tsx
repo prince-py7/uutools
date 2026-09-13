@@ -258,6 +258,16 @@ export default function ProfilePage() {
                   ? ` · ${classSectionLabel(classRow, section || undefined)}`
                   : ""}
               </p>
+              {profile.enrollment_id && (
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  College ID: {profile.enrollment_id}
+                </p>
+              )}
+              {!profile.enrollment_id && isSelf && (
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  No College ID yet — add it in Edit profile.
+                </p>
+              )}
               {profile.bio ? (
                 <p className="mt-3 whitespace-pre-wrap text-sm">{profile.bio}</p>
               ) : (

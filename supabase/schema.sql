@@ -51,6 +51,7 @@ create table if not exists public.profiles (
   college_id uuid references public.colleges(id),
   class_id uuid references public.classes(id),
   section_id uuid references public.sections(id),
+  enrollment_id text,
   socials jsonb not null default '{}'::jsonb,
   is_admin boolean not null default false,
   is_disabled boolean not null default false,

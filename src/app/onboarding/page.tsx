@@ -13,6 +13,7 @@ export default function OnboardingPage() {
   const [collegeId, setCollegeId] = useState("");
   const [classId, setClassId] = useState("");
   const [sectionId, setSectionId] = useState("");
+  const [enrollmentId, setEnrollmentId] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingDir, setLoadingDir] = useState(!demoMode);
@@ -94,10 +95,15 @@ export default function OnboardingPage() {
     }
     setSaving(true);
     setError("");
+    if (!enrollmentId.trim()) {
+      setError("Enter your College ID / enrollment number");
+      return;
+    }
     const updated = await updateProfile({
       college_id: collegeId,
       class_id: classId,
       section_id: sectionId,
+      enrollment_id: enrollmentId.trim(),
       onboarding_complete: true,
     });
     setSaving(false);
@@ -192,6 +198,22 @@ export default function OnboardingPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            
+            <div>
+              <label className="mb-1.5 block text-sm text-[var(--muted)]">
+                College ID / Enrollment no.
+              </label>
+              <input
+                className="input"
+                value={enrollmentId}
+                onChange={(e) => setEnrollmentId(e.target.value)}
+                placeholder="e.g. UU24BCA0123"
+                required
+              />
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Your student ID from college (roll / enrollment number).
+              </p>
             </div>
             {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
             <button

@@ -97,6 +97,7 @@ describe("eligibility & badges", () => {
       college_id: "c1",
       class_id: "cl1",
       section_id: "s1",
+      enrollment_id: null,
       socials: {},
       is_admin: false,
       is_disabled: false,

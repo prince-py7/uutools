@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { Composer } from "@/components/feed/Composer";
+import { notifyFeedUpdated } from "@/lib/feed";
 import { FriendRequestsPanel } from "@/components/social/FriendRequests";
 import { Avatar } from "@/components/ui/Badge";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
@@ -401,6 +402,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <div className="p-4">
               <Composer
                 onPosted={() => {
+                  notifyFeedUpdated();
                   closeComposer();
                   if (pathname !== "/home") router.push("/home");
                 }}
