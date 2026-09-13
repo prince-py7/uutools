@@ -28,6 +28,7 @@ import { notifyFeedUpdated } from "@/lib/feed";
 import { FriendRequestsPanel } from "@/components/social/FriendRequests";
 import { Avatar } from "@/components/ui/Badge";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
+import { countPendingFriendRequests } from "@/lib/friends";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { verificationReminder } from "@/lib/verification";
 
@@ -52,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const {
     composerOpen,
@@ -83,15 +84,29 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     };
   }, [mobileOpen]);
 
-  const pendingCount = useMemo(
-    () =>
-      user
-        ? catalog.friendRequests.filter(
-            (r) => r.to_user_id === user.id && r.status === "pending"
-          ).length
-        : 0,
-    [catalog.friendRequests, user]
-  );
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) {
+      setPendingCount(0);
+      return;
+    }
+    if (demoMode) {
+      setPendingCount(
+        catalog.friendRequests.filter(
+          (r) => r.to_user_id === user.id && r.status === "pending"
+        ).length
+      );
+      return;
+    }
+    let cancelled = false;
+    void countPendingFriendRequests(user.id).then((n) => {
+      if (!cancelled) setPendingCount(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, demoMode, catalog.friendRequests]);
 
   const reminder = user ? verificationReminder(user) : null;
   const profileHref = user ? `/profile/${user.username}` : "/login";

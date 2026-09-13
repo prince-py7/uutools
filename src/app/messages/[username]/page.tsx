@@ -1,25 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { Avatar } from "@/components/ui/Badge";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoGetOrCreateConversation,
   demoSendMessage,
 } from "@/lib/demo-store";
+import {
+  findProfileByUsername,
+  getOrCreateConversation,
+  listMessages,
+  sendMessage,
+} from "@/lib/messages";
+import type { Message, Profile } from "@/lib/types";
 
 export default function MessageThreadPage() {
-  const { user, ready } = useAuth();
+  const { user, ready, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
+  const toast = useToast();
   const params = useParams<{ username: string }>();
   const username = params.username;
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
   const [convId, setConvId] = useState<string | null>(null);
+  const [livePeer, setLivePeer] = useState<Profile | null>(null);
+  const [liveThread, setLiveThread] = useState<Message[]>([]);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -27,52 +39,105 @@ export default function MessageThreadPage() {
     else if (!user.onboarding_complete) router.replace("/onboarding");
   }, [ready, user, router]);
 
-  const other = useMemo(
+  const demoPeer = useMemo(
     () =>
       catalog.profiles.find(
         (p) =>
           p.username === username &&
           (!user?.college_id || p.college_id === user.college_id)
-      ),
+      ) || null,
     [catalog.profiles, username, user?.college_id]
   );
 
-  useEffect(() => {
-    if (!user || !other) {
+  const other = demoMode ? demoPeer : livePeer;
+
+  const reloadLive = useCallback(async () => {
+    if (!user || demoMode) return;
+    const found = await findProfileByUsername(username, user.college_id);
+    if (found.error || !found.profile) {
+      setLivePeer(null);
+      setConvId(null);
+      setError(found.error || "User not found");
+      return;
+    }
+    setLivePeer(found.profile);
+    const conv = await getOrCreateConversation(user.id, found.profile.id);
+    if (conv.error || !conv.conversation) {
+      setError(conv.error || "Could not open chat");
       setConvId(null);
       return;
     }
-    const res = demoGetOrCreateConversation(user.id, other.id);
-    if (res.error) {
-      setError(res.error);
-      setConvId(null);
-    } else {
-      setError("");
-      setConvId(res.conversation?.id || null);
+    setError("");
+    setConvId(conv.conversation.id);
+    const msgs = await listMessages(conv.conversation.id);
+    if (msgs.error) toast.error(msgs.error);
+    setLiveThread(msgs.messages);
+  }, [user, demoMode, username, toast]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (demoMode) {
+      if (!demoPeer) {
+        setConvId(null);
+        return;
+      }
+      const res = demoGetOrCreateConversation(user.id, demoPeer.id);
+      if (res.error) {
+        setError(res.error);
+        setConvId(null);
+      } else {
+        setError("");
+        setConvId(res.conversation?.id || null);
+      }
+      return;
     }
-  }, [user, other, catalog.friendRequests, catalog.conversations]);
+    void reloadLive();
+  }, [
+    user,
+    demoMode,
+    demoPeer,
+    catalog.friendRequests,
+    catalog.conversations,
+    reloadLive,
+  ]);
 
   const thread = useMemo(() => {
-    if (!convId) return [];
+    if (!convId) return [] as Message[];
+    if (!demoMode) return liveThread;
     return catalog.messages
       .filter((m) => m.conversation_id === convId)
       .sort(
         (a, b) =>
           new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
-  }, [catalog.messages, convId]);
+  }, [convId, demoMode, liveThread, catalog.messages]);
 
   if (!user) return null;
 
-  function send(e: FormEvent) {
+  async function send(e: FormEvent) {
     e.preventDefault();
-    if (!convId || !user) return;
-    const res = demoSendMessage(convId, user.id, body);
-    if (res.error) setError(res.error);
-    else {
+    if (!convId || !user || sending) return;
+    setSending(true);
+    if (demoMode) {
+      const res = demoSendMessage(convId, user.id, body);
+      if (res.error) setError(res.error);
+      else {
+        setBody("");
+        setError("");
+      }
+      setSending(false);
+      return;
+    }
+    const res = await sendMessage(convId, user.id, body);
+    if (res.error) {
+      setError(res.error);
+      toast.error(res.error);
+    } else if (res.message) {
       setBody("");
       setError("");
+      setLiveThread((prev) => [...prev, res.message!]);
     }
+    setSending(false);
   }
 
   return (
@@ -88,7 +153,11 @@ export default function MessageThreadPage() {
                 href={`/profile/${other.username}`}
                 className="flex items-center gap-2 font-semibold"
               >
-                <Avatar name={other.display_name} url={other.avatar_url} size={28} />
+                <Avatar
+                  name={other.display_name}
+                  url={other.avatar_url}
+                  size={28}
+                />
                 {other.display_name}
               </Link>
             ) : (
@@ -114,7 +183,7 @@ export default function MessageThreadPage() {
           </div>
           {convId && (
             <form
-              onSubmit={send}
+              onSubmit={(e) => void send(e)}
               className="flex gap-2 border-t border-[var(--line)] p-3"
             >
               <input
@@ -123,8 +192,12 @@ export default function MessageThreadPage() {
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
               />
-              <button className="btn btn-primary" type="submit">
-                Send
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={sending}
+              >
+                {sending ? "…" : "Send"}
               </button>
             </form>
           )}

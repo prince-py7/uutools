@@ -8,7 +8,14 @@ import { PostCard } from "@/components/feed/PostCard";
 import { StoriesRail } from "@/components/social/StoriesRail";
 import { isVerifiedForFilter, sortFeedPosts } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
+import {
+  fetchCollegeClasses,
+  fetchClassRolesForUsers,
+  fetchPopularThreshold,
+} from "@/lib/directory";
 import { fetchCollegeFeed, type FeedItem } from "@/lib/feed";
+import { createClient } from "@/lib/supabase/client";
+import type { ClassRole, ClassRow, Section } from "@/lib/types";
 
 export default function HomePage() {
   const { user, ready, demoMode } = useAuth();
@@ -26,6 +33,12 @@ export default function HomePage() {
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [feedError, setFeedError] = useState("");
   const [feedTick, setFeedTick] = useState(0);
+  const [popularThreshold, setPopularThreshold] = useState(
+    catalog.popularThreshold
+  );
+  const [roles, setRoles] = useState<ClassRole[]>([]);
+  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
 
   useEffect(() => {
     if (!ready) return;
@@ -39,7 +52,35 @@ export default function HomePage() {
     return () => window.removeEventListener("uu-feed-updated", onUpdate);
   }, []);
 
-  const loadLiveFeed = useCallback(async () => {
+  useEffect(() => {
+    if (demoMode || !user?.college_id) return;
+    let cancelled = false;
+    void (async () => {
+      const [thr, classRows] = await Promise.all([
+        fetchPopularThreshold(),
+        fetchCollegeClasses(user.college_id!),
+      ]);
+      if (cancelled) return;
+      setPopularThreshold(thr);
+      setClasses(classRows);
+      if (classRows.length) {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("sections")
+          .select("*")
+          .in(
+            "class_id",
+            classRows.map((c) => c.id)
+          );
+        if (!cancelled) setSections((data as Section[]) || []);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [demoMode, user?.college_id]);
+
+    const loadLiveFeed = useCallback(async () => {
     if (!user?.college_id || demoMode) return;
     setLoadingFeed(true);
     setFeedError("");
@@ -57,7 +98,7 @@ export default function HomePage() {
     let items = res.items;
     if (studyOnly && verifiedOnly) {
       items = items.filter((i) =>
-        isVerifiedForFilter(i.post, catalog.popularThreshold)
+        isVerifiedForFilter(i.post, popularThreshold)
       );
     }
     if (studyOnly && !verifiedOnly) {
@@ -75,6 +116,8 @@ export default function HomePage() {
         .filter((x): x is FeedItem => Boolean(x));
     }
     setLiveItems(items);
+    const authorIds = [...new Set(items.map((i) => i.author.id))];
+    setRoles(await fetchClassRolesForUsers(authorIds));
     setLoadingFeed(false);
   }, [
     user,
@@ -86,7 +129,7 @@ export default function HomePage() {
     studyType,
     subjectId,
     verifiedOnly,
-    catalog.popularThreshold,
+    popularThreshold,
   ]);
 
   useEffect(() => {
@@ -187,6 +230,10 @@ export default function HomePage() {
                 initialLiked={item.liked}
                 initialFavoured={item.favoured}
                 initialComments={item.comments}
+                roles={roles}
+                classes={classes}
+                sections={sections}
+                popularThreshold={popularThreshold}
               />
             ))
           )}

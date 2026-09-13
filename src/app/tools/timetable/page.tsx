@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { demoSaveTimetableSlot } from "@/lib/demo-store";
+import { fetchTimetable, saveTimetableSlot } from "@/lib/timetable-db";
 import { DAYS as DAY_NS, SLOTS as SLOT_NS } from "@/lib/timetable";
+import type { TimetableSlot } from "@/lib/types";
 
 const DAYS = [
   { n: 1, label: "Monday" },
@@ -18,32 +21,95 @@ const DAYS = [
 const SLOTS = [...SLOT_NS];
 
 export default function TimetablePage() {
-  const { user, ready } = useAuth();
+  const { user, ready, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
+  const toast = useToast();
   const [day, setDay] = useState(1);
   const [error, setError] = useState("");
+  const [slots, setSlots] = useState<TimetableSlot[]>([]);
+  const [loading, setLoading] = useState(!demoMode);
 
   useEffect(() => {
     if (!ready) return;
     if (!user) router.replace("/login");
   }, [ready, user, router]);
 
+  useEffect(() => {
+    if (!user) return;
+    if (demoMode) {
+      setSlots(catalog.timetables.filter((t) => t.user_id === user.id));
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void fetchTimetable(user.id).then((res) => {
+      if (cancelled) return;
+      if (res.error) toast.error(res.error);
+      setSlots(res.slots);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, demoMode, catalog.timetables, toast]);
+
   const grid = useMemo(() => {
-    if (!user) return {};
     const map: Record<string, string> = {};
-    for (const row of catalog.timetables.filter((t) => t.user_id === user.id)) {
+    for (const row of slots) {
       map[`${row.day_of_week}-${row.slot}`] = row.subject_text;
     }
     return map;
-  }, [catalog.timetables, user]);
+  }, [slots]);
 
-  function setCell(dayOfWeek: number, slot: number, subject_text: string) {
+  async function setCell(
+    dayOfWeek: number,
+    slot: number,
+    subject_text: string
+  ) {
     if (!user) return;
     if (!DAY_NS.includes(dayOfWeek as (typeof DAY_NS)[number])) return;
-    const res = demoSaveTimetableSlot(user.id, dayOfWeek, slot, subject_text);
-    if (res.error) setError(res.error);
-    else setError("");
+
+    if (demoMode) {
+      const res = demoSaveTimetableSlot(
+        user.id,
+        dayOfWeek,
+        slot,
+        subject_text
+      );
+      if (res.error) setError(res.error);
+      else {
+        setError("");
+        setSlots(catalog.timetables.filter((t) => t.user_id === user.id));
+      }
+      return;
+    }
+
+    setSlots((prev) => {
+      const next = prev.filter(
+        (r) => !(r.day_of_week === dayOfWeek && r.slot === slot)
+      );
+      next.push({
+        id: `${user.id}-${dayOfWeek}-${slot}`,
+        user_id: user.id,
+        day_of_week: dayOfWeek,
+        slot,
+        subject_text,
+      });
+      return next;
+    });
+
+    const res = await saveTimetableSlot(
+      user.id,
+      dayOfWeek,
+      slot,
+      subject_text
+    );
+    if (res.error) {
+      setError(res.error);
+      toast.error(res.error);
+    } else setError("");
   }
 
   if (!user) return null;
@@ -51,13 +117,14 @@ export default function TimetablePage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl space-y-4 px-3 py-6 md:px-0">
-        <h1 className="text-2xl font-bold">
-          Timetable
-        </h1>
+        <h1 className="text-2xl font-bold">Timetable</h1>
         <p className="text-sm text-[var(--muted)]">
           Monday–Friday · 7 slots — set your own subjects
         </p>
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+        {loading && (
+          <p className="text-sm text-[var(--muted)]">Loading timetable…</p>
+        )}
 
         <div className="flex gap-2 overflow-x-auto pb-1">
           {DAYS.map((d) => (
@@ -85,7 +152,7 @@ export default function TimetablePage() {
                 className="input"
                 placeholder="Subject name"
                 value={grid[`${day}-${slot}`] || ""}
-                onChange={(e) => setCell(day, slot, e.target.value)}
+                onChange={(e) => void setCell(day, slot, e.target.value)}
               />
             </div>
           ))}
@@ -106,13 +173,17 @@ export default function TimetablePage() {
             <tbody>
               {SLOTS.map((slot) => (
                 <tr key={slot} className="border-b border-[var(--line)]">
-                  <td className="p-3 font-semibold text-[var(--muted)]">{slot}</td>
+                  <td className="p-3 font-semibold text-[var(--muted)]">
+                    {slot}
+                  </td>
                   {DAYS.map((d) => (
                     <td key={d.n} className="p-2">
                       <input
                         className="input h-9"
                         value={grid[`${d.n}-${slot}`] || ""}
-                        onChange={(e) => setCell(d.n, slot, e.target.value)}
+                        onChange={(e) =>
+                          void setCell(d.n, slot, e.target.value)
+                        }
                       />
                     </td>
                   ))}
