@@ -99,6 +99,15 @@ export async function enablePushNotifications(
     },
     { onConflict: "user_id,endpoint" }
   );
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    if (/push_subscriptions|schema cache|does not exist/i.test(error.message)) {
+      return {
+        ok: false,
+        error:
+          "Push table missing. Run supabase/patch_notifications.sql in Supabase SQL Editor, then try again.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
   return { ok: true };
 }

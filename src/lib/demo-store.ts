@@ -750,6 +750,26 @@ export function demoCreatePost(
   return full;
 }
 
+/** Delete own post (and related likes/comments/favourites/shares). */
+export function demoDeletePost(
+  userId: string,
+  postId: string
+): { ok: boolean; error?: string } {
+  const state = read();
+  const post = state.posts.find((p) => p.id === postId);
+  if (!post) return { ok: false, error: "Post not found" };
+  if (post.author_id !== userId) {
+    return { ok: false, error: "You can only delete your own posts" };
+  }
+  state.posts = state.posts.filter((p) => p.id !== postId);
+  state.likes = state.likes.filter((l) => l.post_id !== postId);
+  state.comments = state.comments.filter((c) => c.post_id !== postId);
+  state.favourites = state.favourites.filter((f) => f.post_id !== postId);
+  state.shares = state.shares.filter((s) => s.post_id !== postId);
+  write(state);
+  return { ok: true };
+}
+
 export function demoToggleLike(userId: string, postId: string) {
   const state = read();
   const existing = state.likes.find(
