@@ -11,6 +11,7 @@ import {
 import { notifyFeedUpdated } from "@/lib/feed";
 import { createClient } from "@/lib/supabase/client";
 import { uploadToSupabase } from "@/lib/supabase/upload";
+import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
 import type {
   ClassRow,
@@ -30,10 +31,21 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
   const [studyType, setStudyType] = useState<StudyType>("unit");
   const [subjectId, setSubjectId] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isOfficialRole, setIsOfficialRole] = useState(false);
+
+  useEffect(() => {
+    if (!file || !file.type.startsWith("image/")) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   useEffect(() => {
     if (!user?.class_id) {
@@ -249,16 +261,21 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             ? "Attach image or PDF (max 10 MB; large photos auto-compress)"
             : "Optional image (jpeg/png/webp/gif, max 10 MB; auto-compress)"}
         </label>
-        <input
-          type="file"
+        <UploadTile
           accept={
             kind === "study"
               ? "image/jpeg,image/png,image/webp,image/gif,application/pdf"
               : "image/jpeg,image/png,image/webp,image/gif"
           }
-          className="block w-full text-sm"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          onPick={(f) => setFile(f || null)}
+          previewUrl={previewUrl}
+          label={kind === "study" ? "Add file" : "Add photo"}
+          disabled={busy}
+          size={96}
         />
+        {file && !previewUrl ? (
+          <p className="mt-1 truncate text-xs text-[var(--muted)]">{file.name}</p>
+        ) : null}
       </div>
       {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <button className="btn btn-primary ml-auto" type="submit" disabled={busy}>
@@ -390,7 +407,7 @@ export function StudyFiltersBar({
               onChange={(e) => setVerifiedOnly(e.target.checked)}
             />
             Verified only
-            <span className="text-xs text-[var(--muted)]">(default on)</span>
+            <span className="text-xs text-[var(--muted)]">(optional)</span>
           </label>
           <select
             className="input"

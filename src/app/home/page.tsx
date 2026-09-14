@@ -3,7 +3,7 @@
 import { LoadingState, SkeletonRows } from "@/components/ui/Loading";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { StudyFiltersBar } from "@/components/feed/Composer";
 import { PostCard } from "@/components/feed/PostCard";
@@ -23,10 +23,12 @@ export default function HomePage() {
   const { user, ready, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const focusPostId = searchParams.get("post");
 
   const [studyOnly, setStudyOnly] = useState(false);
   const [classOnly, setClassOnly] = useState(false);
-  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [classId, setClassId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -172,6 +174,25 @@ export default function HomePage() {
     subjectId,
     studyType,
   ]);
+
+  useEffect(() => {
+    if (!focusPostId) return;
+    if (loadingFeed && !demoMode) return;
+    const id = `post-${focusPostId}`;
+    const tryFocus = () => {
+      const el = document.getElementById(id);
+      if (!el) return false;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("post-focus-ring");
+      window.setTimeout(() => el.classList.remove("post-focus-ring"), 3200);
+      return true;
+    };
+    if (tryFocus()) return;
+    const t = window.setTimeout(() => {
+      tryFocus();
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [focusPostId, loadingFeed, demoMode, liveItems, demoPosts]);
 
   if (!user) {
     return (

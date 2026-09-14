@@ -8,11 +8,13 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoRespondFriendRequest,
+  demoRemoveFriend,
   demoSendFriendRequest,
 } from "@/lib/demo-store";
 import {
   fetchFriendBundle,
   respondFriendRequest,
+  removeFriend,
   sendFriendRequest,
   type FriendBundle,
 } from "@/lib/friends";
@@ -129,8 +131,32 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
     setBusy(false);
   }
 
+  async function onRemoveFriend(friendId: string) {
+    if (busy) return;
+    if (!window.confirm("Remove this friend?")) return;
+    setBusy(true);
+    if (demoMode) {
+      const res = demoRemoveFriend(userId, friendId);
+      if (res.error) {
+        toast.error(res.error);
+        setBusy(false);
+        return;
+      }
+      setMsg("Friend removed");
+      setBusy(false);
+      return;
+    }
+    const res = await removeFriend(userId, friendId);
+    if (res.error) toast.error(res.error);
+    else {
+      setMsg("Friend removed");
+      await reload();
+    }
+    setBusy(false);
+  }
+
   return (
-    <div className="flex max-h-[70vh] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex gap-1 border-b border-[var(--line)] px-2 pt-2">
         {(
           [
@@ -250,6 +276,14 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
                   >
                     <MessageCircle size={18} />
                   </Link>
+                  <button
+                    type="button"
+                    className="btn btn-ghost border-0 px-2 text-xs text-[var(--danger)]"
+                    disabled={busy}
+                    onClick={() => void onRemoveFriend(fid)}
+                  >
+                    Remove
+                  </button>
                 </div>
               );
             })

@@ -14,7 +14,7 @@ import {
   Image as ImageIcon,
   LogOut,
   Menu,
-  MessageCircle,
+  MessageSquare,
   PlusSquare,
   Search,
   Settings,
@@ -33,11 +33,13 @@ import { countPendingFriendRequests } from "@/lib/friends";
 import { countUnreadNotifications } from "@/lib/notifications";
 import { countUnreadMessages, subscribeInbox } from "@/lib/messages";
 import { enablePushNotifications, pushSupported } from "@/lib/push";
+import {
+  setPushEnabledPref,
+  shouldShowPushPrompt,
+} from "@/lib/push-prefs";
 import { demoUnreadMessageCount } from "@/lib/demo-store";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { verificationReminder } from "@/lib/verification";
-
-const PUSH_PROMPT_KEY = "unitians-push-prompt-dismissed";
 
 const tools = [
   { href: "/tools/image-finder", label: "Image Finder", icon: ImageIcon },
@@ -153,7 +155,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user, demoMode, catalog, pathname]);
+  }, [user, demoMode, catalog.roles]);
 
   useEffect(() => {
     if (!user) {
@@ -179,7 +181,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       unsub();
       window.removeEventListener("unitians:messages-changed", onLocal);
     };
-  }, [user, demoMode, catalog.messages, catalog.conversations, pathname]);
+  }, [user, demoMode, catalog.messages, catalog.conversations]);
 
   useEffect(() => {
     if (!user || typeof window === "undefined") {
@@ -190,19 +192,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       setShowPushPrompt(false);
       return;
     }
-    if (Notification.permission === "granted") {
-      setShowPushPrompt(false);
-      return;
-    }
-    try {
-      if (localStorage.getItem(PUSH_PROMPT_KEY) === "1") {
-        setShowPushPrompt(false);
-        return;
-      }
-    } catch {
-      /* ignore */
-    }
-    setShowPushPrompt(true);
+    setShowPushPrompt(shouldShowPushPrompt());
   }, [user]);
 
   const reminder = user ? verificationReminder(user) : null;
@@ -347,8 +337,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         >
           <Menu size={22} strokeWidth={1.75} />
         </button>
-                <Link href="/home" className="flex items-center gap-2 md:hidden">
-          <span className="text-[15px] font-bold tracking-[0.08em]">UNITIANS</span>
+        <Link href="/home" className="flex items-center gap-2 md:hidden">
+          <span className="brand-glow text-[15px] font-bold tracking-[0.08em]">
+            UNITIANS
+          </span>
         </Link>
         <div className="flex items-center gap-0.5">
           <Link
@@ -389,7 +381,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             aria-label="Messages"
             title="Messages"
           >
-            <MessageCircle
+            <MessageSquare
               size={22}
               strokeWidth={pathname.startsWith("/messages") ? 2.25 : 1.75}
             />
@@ -413,7 +405,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           />
           <aside className="absolute inset-y-0 left-0 flex w-[min(84vw,300px)] flex-col border-r border-[var(--line)] bg-[#0a0a0a] shadow-2xl">
             <div className="flex h-12 items-center justify-between border-b border-[var(--line)] px-3">
-              <span className="text-sm font-semibold">Menu</span>
+              <span className="brand-glow text-sm font-bold tracking-[0.08em]">
+                UNITIANS
+              </span>
               <button
                 type="button"
                 aria-label="Close menu"
@@ -488,7 +482,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           {reminder && (
             <div className="mx-3 mt-3 rounded-lg border border-[var(--line)] bg-[#121212] px-3 py-2 text-xs text-[var(--muted)] md:mx-0">
               {reminder}{" "}
-              <Link href="/profile/edit" className="text-[var(--accent)]">
+              <Link href="/profile/settings" className="text-[var(--accent)]">
                 Account settings
               </Link>
             </div>
@@ -502,7 +496,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                   className="rounded-md px-2 py-1 text-[var(--muted)] hover:text-white"
                   onClick={() => {
                     try {
-                      localStorage.setItem(PUSH_PROMPT_KEY, "1");
+                      localStorage.setItem(
+                        "unitians-push-prompt-dismissed",
+                        "1"
+                      );
                     } catch {
                       /* ignore */
                     }
@@ -526,8 +523,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                         setPushError(res.error || "Could not enable alerts");
                         return;
                       }
+                      setPushEnabledPref(true);
                       try {
-                        localStorage.setItem(PUSH_PROMPT_KEY, "1");
+                        localStorage.setItem(
+                          "unitians-push-prompt-dismissed",
+                          "1"
+                        );
                       } catch {
                         /* ignore */
                       }
@@ -612,13 +613,16 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       )}
 
       {requestsOpen && (
-        <div className="modal-backdrop" onClick={closeRequests}>
+        <div
+          className="fixed inset-0 z-[60] flex flex-col bg-black"
+          onClick={closeRequests}
+        >
           <div
-            className="card w-full max-w-md overflow-hidden rounded-t-xl sm:rounded-xl"
+            className="flex h-full min-h-0 w-full flex-1 flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <h2 className="text-[15px] font-semibold">Friend requests</h2>
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--line)] px-4 py-3">
+              <h2 className="text-[15px] font-semibold">Friends</h2>
               <button className="icon-btn" onClick={closeRequests} aria-label="Close">
                 <X size={18} />
               </button>

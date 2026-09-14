@@ -5,6 +5,7 @@ import { LoadingState } from "@/components/ui/Loading";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Settings } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
 import { PostCard } from "@/components/feed/PostCard";
@@ -249,6 +250,16 @@ export default function ProfilePage() {
                 <h1 className="text-xl font-bold">
                   {profile.display_name || profile.username}
                 </h1>
+                {isSelf ? (
+                  <Link
+                    href="/profile/settings"
+                    className="icon-btn text-[var(--muted)] hover:text-white"
+                    aria-label="Settings"
+                    title="Settings"
+                  >
+                    <Settings size={18} />
+                  </Link>
+                ) : null}
                 <BadgeList badges={badges} />
               </div>
               <p className="text-[var(--muted)]">@{profile.username}</p>

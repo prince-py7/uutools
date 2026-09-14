@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, UserPlus, X } from "lucide-react";
 import { Avatar } from "@/components/ui/Badge";
+import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
@@ -10,7 +11,9 @@ import {
   demoCreateStory,
   demoFileToDataUrl,
   demoMarkStoryViewed,
+  demoSendFriendRequest,
 } from "@/lib/demo-store";
+import { sendFriendRequest } from "@/lib/friends";
 import {
   createStory,
   fetchActiveStories,
@@ -24,6 +27,7 @@ export function StoriesRail() {
   const { user, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const toast = useToast();
+
   const [viewer, setViewer] = useState<{
     classId: string;
     authorIds: string[];
@@ -32,9 +36,11 @@ export function StoriesRail() {
   } | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [friendBusy, setFriendBusy] = useState(false);
   const [liveStories, setLiveStories] = useState<StoryWithAuthor[]>([]);
   const [liveClasses, setLiveClasses] = useState<ClassRow[]>([]);
   const [tick, setTick] = useState(0);
@@ -57,9 +63,14 @@ export function StoriesRail() {
     void reloadLive();
   }, [reloadLive, tick]);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const active: Story[] = useMemo(() => {
     if (demoMode) {
-      // Recompute when demo catalog / tick changes (demoActiveStories reads the store).
       void catalog.stories;
       void tick;
       return demoActiveStories(user?.college_id ?? null);
@@ -100,40 +111,28 @@ export function StoriesRail() {
     return ids;
   }, [grouped, user?.class_id]);
 
-  const rings = useMemo(() => {
-    const items: {
-      classId: string;
-      authorId: string;
-      preview: string;
-      label: string;
-    }[] = [];
-    for (const classId of classOrder) {
-      const byAuthor = grouped.get(classId)!;
-      for (const [authorId, stories] of byAuthor) {
-        const author = profilesById.get(authorId);
+  const rings = useMemo(
+    () =>
+      classOrder.map((classId) => {
+        const byAuthor = grouped.get(classId)!;
+        const first = [...byAuthor.values()][0] || [];
         const cls = classesById.get(classId);
-        items.push({
+        return {
           classId,
-          authorId,
-          preview: stories[0]?.media_url || "",
-          label: author
-            ? `${author.display_name.split(" ")[0]}${cls ? ` · ${cls.name}` : ""}`
-            : "Story",
-        });
-      }
-    }
-    return items;
-  }, [classOrder, grouped, profilesById, classesById]);
+          preview: first[0]?.media_url || "",
+          label: cls?.name || "Class",
+        };
+      }),
+    [classOrder, grouped, classesById]
+  );
 
-  function openAuthor(classId: string, authorId: string) {
+  function openClass(classId: string) {
     const byAuthor = grouped.get(classId);
     if (!byAuthor) return;
-    const authorIds = [...byAuthor.keys()];
-    const authorIndex = authorIds.indexOf(authorId);
     setViewer({
       classId,
-      authorIds,
-      authorIndex: Math.max(0, authorIndex),
+      authorIds: [...byAuthor.keys()],
+      authorIndex: 0,
       storyIndex: 0,
     });
   }
@@ -146,6 +145,9 @@ export function StoriesRail() {
   }, [viewer, grouped]);
 
   const currentStory = currentStories[viewer?.storyIndex ?? 0];
+  const currentAuthor = currentStory
+    ? profilesById.get(currentStory.author_id)
+    : null;
 
   useEffect(() => {
     if (!viewer || !currentStory || !user) return;
@@ -173,10 +175,9 @@ export function StoriesRail() {
     const classIdx = classOrder.indexOf(viewer.classId);
     if (classIdx + 1 < classOrder.length) {
       const nextClass = classOrder[classIdx + 1];
-      const nextAuthors = [...(grouped.get(nextClass)?.keys() || [])];
       setViewer({
         classId: nextClass,
-        authorIds: nextAuthors,
+        authorIds: [...(grouped.get(nextClass)?.keys() || [])],
         authorIndex: 0,
         storyIndex: 0,
       });
@@ -191,6 +192,7 @@ export function StoriesRail() {
       return;
     }
     setBusy(true);
+    setError("");
     if (demoMode) {
       const res = await demoFileToDataUrl(file, "story");
       if ("error" in res) {
@@ -206,6 +208,8 @@ export function StoriesRail() {
         media_type: res.mediaType === "video" ? "video" : "image",
         caption,
       });
+      setTick((t) => t + 1);
+      toast.success("Story shared");
     } else {
       const res = await createStory({
         authorId: user.id,
@@ -225,9 +229,30 @@ export function StoriesRail() {
     }
     setComposeOpen(false);
     setFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
     setCaption("");
-    setError("");
     setBusy(false);
+  }
+
+  async function addFriendFromStory() {
+    if (!user || !currentAuthor || currentAuthor.id === user.id || friendBusy) {
+      return;
+    }
+    setFriendBusy(true);
+    try {
+      if (demoMode) {
+        const res = demoSendFriendRequest(user.id, currentAuthor.id);
+        if (res.error) toast.error(res.error);
+        else toast.success("Friend request sent");
+      } else {
+        const res = await sendFriendRequest(user.id, currentAuthor.id);
+        if (res.error) toast.error(res.error);
+        else toast.success("Friend request sent");
+      }
+    } finally {
+      setFriendBusy(false);
+    }
   }
 
   if (!user) return null;
@@ -235,36 +260,65 @@ export function StoriesRail() {
   return (
     <>
       <div className="flex gap-3 overflow-x-auto px-1 py-2">
-        <button
-          type="button"
-          className="flex w-16 shrink-0 flex-col items-center gap-1"
-          onClick={() => setComposeOpen(true)}
-        >
-          <span className="grid h-14 w-14 place-items-center rounded-full border border-dashed border-[var(--line)] bg-[#121212] text-[var(--accent)]">
-            <Plus size={20} />
-          </span>
+        <div className="flex w-16 shrink-0 flex-col items-center gap-1">
+          <div className="relative">
+            <button
+              type="button"
+              className="rounded-full border border-dashed border-[var(--line)] p-[2px]"
+              onClick={() => setComposeOpen(true)}
+              aria-label="Your story"
+            >
+              <Avatar
+                name={user.display_name}
+                url={user.avatar_url}
+                size={52}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => setComposeOpen(true)}
+              className="absolute -right-0.5 -bottom-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-black bg-[var(--accent)] text-black"
+              aria-label="Add story"
+            >
+              <Plus size={14} strokeWidth={2.5} />
+            </button>
+          </div>
           <span className="truncate text-[10px] text-[var(--muted)]">
             Your story
           </span>
-        </button>
+        </div>
+
         {rings.map((r) => (
           <button
-            key={`${r.classId}-${r.authorId}`}
+            key={r.classId}
             type="button"
             className="flex w-16 shrink-0 flex-col items-center gap-1"
-            onClick={() => openAuthor(r.classId, r.authorId)}
+            onClick={() => openClass(r.classId)}
           >
             <span className="rounded-full border-2 border-[var(--accent)] p-[2px]">
-              <Avatar name={r.label} url={null} size={48} />
+              <span className="grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full bg-[#121212]">
+                {r.preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={r.preview}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="px-1 text-center text-[9px] font-bold uppercase leading-tight text-[var(--text)]">
+                    {r.label}
+                  </span>
+                )}
+              </span>
             </span>
-            <span className="w-full truncate text-center text-[10px] text-[var(--muted)]">
+            <span className="w-full truncate text-center text-[10px] font-semibold text-[var(--text)]">
               {r.label}
             </span>
           </button>
         ))}
       </div>
 
-      {composeOpen && (
+      {composeOpen ? (
         <div className="modal-backdrop" onClick={() => setComposeOpen(false)}>
           <div
             className="card w-full max-w-md p-4"
@@ -284,11 +338,16 @@ export function StoriesRail() {
               Visible to your college · disappears after 24 hours · image or
               video
             </p>
-            <input
-              type="file"
+            <UploadTile
               accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
-              className="mb-3 block w-full text-sm"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              previewUrl={previewUrl}
+              label="Add media"
+              className="mb-3"
+              onPick={(f) => {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setFile(f || null);
+                setPreviewUrl(f ? URL.createObjectURL(f) : null);
+              }}
             />
             <input
               className="input mb-3"
@@ -296,31 +355,74 @@ export function StoriesRail() {
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
             />
-            {error && (
+            {error ? (
               <p className="mb-2 text-xs text-[var(--danger)]">{error}</p>
-            )}
+            ) : null}
             <button
               type="button"
               className="btn btn-primary w-full"
-              disabled={busy}
+              disabled={busy || !file}
               onClick={() => void publishStory()}
             >
               {busy ? "Sharing…" : "Share story"}
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {viewer && currentStory && (
+      {viewer && currentStory ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95">
-          <button
-            type="button"
-            className="absolute top-4 right-4 icon-btn text-white"
-            onClick={() => setViewer(null)}
-            aria-label="Close"
-          >
-            <X size={22} />
-          </button>
+          <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/80 to-transparent px-3 pt-3 pb-8">
+            <div className="mb-3 flex gap-1">
+              {currentStories.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-0.5 flex-1 rounded ${
+                    i <= viewer.storyIndex ? "bg-white" : "bg-white/30"
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Avatar
+                  name={currentAuthor?.display_name || "Student"}
+                  url={currentAuthor?.avatar_url}
+                  size={36}
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">
+                    {currentAuthor?.display_name || "Student"}
+                  </p>
+                  <p className="truncate text-[11px] text-white/70">
+                    {classesById.get(currentStory.class_id)?.name || "Class"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {currentAuthor && currentAuthor.id !== user.id ? (
+                  <button
+                    type="button"
+                    disabled={friendBusy}
+                    onClick={() => void addFriendFromStory()}
+                    className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white backdrop-blur hover:bg-white/25 disabled:opacity-50"
+                  >
+                    <UserPlus size={14} />
+                    Add friend
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="icon-btn text-white"
+                  onClick={() => setViewer(null)}
+                  aria-label="Close"
+                >
+                  <X size={22} />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="relative h-full max-h-[90vh] w-full max-w-md">
             {currentStory.media_type === "video" ? (
               <video
@@ -337,36 +439,16 @@ export function StoriesRail() {
                 className="h-full w-full object-contain"
               />
             )}
-            <div className="absolute inset-x-0 top-0 flex gap-1 p-3">
-              {currentStories.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-0.5 flex-1 rounded ${
-                    i <= (viewer.storyIndex || 0) ? "bg-white" : "bg-white/30"
-                  }`}
-                />
-              ))}
-            </div>
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-              {(() => {
-                const author = profilesById.get(currentStory.author_id);
-                const cls = classesById.get(currentStory.class_id);
-                return (
-                  <p className="text-sm font-semibold">
-                    {cls?.name} · {author?.display_name}
-                  </p>
-                );
-              })()}
-              {currentStory.caption && (
+            {currentStory.caption ? (
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                 <p className="text-sm text-white/90">{currentStory.caption}</p>
-              )}
-            </div>
+              </div>
+            ) : null}
             <button
               type="button"
               className="absolute inset-y-0 left-0 w-1/3"
               aria-label="Previous"
               onClick={() => {
-                if (!viewer) return;
                 if (viewer.storyIndex > 0) {
                   setViewer({ ...viewer, storyIndex: viewer.storyIndex - 1 });
                 }
@@ -380,7 +462,7 @@ export function StoriesRail() {
             />
           </div>
         </div>
-      )}
+      ) : null}
     </>
   );
 }

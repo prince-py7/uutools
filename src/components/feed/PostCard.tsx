@@ -5,15 +5,18 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Heart,
   MessageCircle,
+  Pencil,
   Share2,
   Star,
   FileText,
   Trash2,
+  Check,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
-import { buildBadges } from "@/lib/badges";
+import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoAddComment,
@@ -21,6 +24,7 @@ import {
   demoRecordShare,
   demoToggleFavourite,
   demoToggleLike,
+  demoUpdatePost,
 } from "@/lib/demo-store";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -68,9 +72,12 @@ export function PostCard({
   const [comments, setComments] = useState<Comment[]>([]);
   const [busy, setBusy] = useState(false);
   const [gone, setGone] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editCaption, setEditCaption] = useState(initialPost.caption || "");
 
   useEffect(() => {
     setPost(initialPost);
+    setEditCaption(initialPost.caption || "");
   }, [initialPost]);
 
   useEffect(() => {
@@ -114,28 +121,70 @@ export function PostCard({
     catalog.profiles.find((p) => p.id === post.author_id) ??
     null;
 
+  const classes = classesOverride ?? catalog.classes;
+  const sections = sectionsOverride ?? catalog.sections;
+
+  const authorClassLabel = useMemo(() => {
+    if (!author) return "";
+    const cls = classes.find((c) => c.id === author.class_id);
+    const sec = sections.find((s) => s.id === author.section_id);
+    return classSectionLabel(cls, sec);
+  }, [author, classes, sections]);
+
   const badges = useMemo(() => {
     if (!author) return [];
     return buildBadges({
       profile: author,
       roles: rolesOverride ?? catalog.roles,
-      classes: classesOverride ?? catalog.classes,
-      sections: sectionsOverride ?? catalog.sections,
+      classes,
+      sections,
       post,
       popularThreshold: thresholdOverride ?? catalog.popularThreshold,
     });
   }, [
     author,
     catalog.roles,
-    catalog.classes,
-    catalog.sections,
     catalog.popularThreshold,
     rolesOverride,
-    classesOverride,
-    sectionsOverride,
+    classes,
+    sections,
     thresholdOverride,
     post,
   ]);
+
+  async function saveCaption() {
+    if (!user || busy) return;
+    if (user.id !== post.author_id) return;
+    const next = editCaption.trim();
+    setBusy(true);
+    if (demoMode) {
+      const res = demoUpdatePost(user.id, post.id, next);
+      setBusy(false);
+      if (!res.ok) {
+        toast.error(res.error || "Could not update");
+        return;
+      }
+      if (res.post) setPost(res.post);
+      else setPost((p) => ({ ...p, caption: next }));
+      setEditing(false);
+      toast.success("Post updated");
+      return;
+    }
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("posts")
+      .update({ caption: next })
+      .eq("id", post.id)
+      .eq("author_id", user.id);
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setPost((p) => ({ ...p, caption: next }));
+    setEditing(false);
+    toast.success("Post updated");
+  }
 
   async function deleteOwnPost() {
     if (!user || busy) return;
@@ -287,8 +336,10 @@ export function PostCard({
 
   if (gone || !author) return null;
 
+  const isOwner = user?.id === post.author_id;
+
   return (
-    <article className="card overflow-hidden">
+    <article id={`post-${post.id}`} className="card overflow-hidden">
       <header className="flex items-start gap-3 p-4">
         <Link href={`/profile/${author.username}`}>
           <Avatar name={author.display_name} url={author.avatar_url} />
@@ -304,32 +355,79 @@ export function PostCard({
             <BadgeList badges={badges} />
           </div>
           <p className="text-xs text-[var(--muted)]">
-            @{author.username} ·{" "}
+            {authorClassLabel ? `${authorClassLabel} · ` : ""}
             {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
             {post.kind === "study" && post.study_type
               ? ` · ${post.study_type}`
               : ""}
           </p>
         </div>
-        {user?.id === post.author_id ? (
-          <button
-            type="button"
-            className="btn btn-ghost border-0 text-[var(--muted)] hover:text-[var(--danger)]"
-            aria-label="Delete post"
-            title="Delete post"
-            disabled={busy}
-            onClick={() => void deleteOwnPost()}
-          >
-            <Trash2 size={18} />
-          </button>
+        {isOwner ? (
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              className="btn btn-ghost border-0 text-[var(--muted)] hover:text-white"
+              aria-label="Edit caption"
+              title="Edit caption"
+              disabled={busy}
+              onClick={() => {
+                setEditCaption(post.caption || "");
+                setEditing(true);
+              }}
+            >
+              <Pencil size={18} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost border-0 text-[var(--muted)] hover:text-[var(--danger)]"
+              aria-label="Delete post"
+              title="Delete post"
+              disabled={busy}
+              onClick={() => void deleteOwnPost()}
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
         ) : null}
       </header>
 
-      {post.caption && (
+      {editing ? (
+        <div className="space-y-2 px-4 pb-3">
+          <textarea
+            className="input min-h-[80px] py-2 text-[15px]"
+            value={editCaption}
+            onChange={(e) => setEditCaption(e.target.value)}
+            autoFocus
+          />
+          <div className="flex justify-end gap-1">
+            <button
+              type="button"
+              className="btn btn-ghost border-0"
+              aria-label="Cancel edit"
+              disabled={busy}
+              onClick={() => {
+                setEditing(false);
+                setEditCaption(post.caption || "");
+              }}
+            >
+              <X size={18} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost border-0 text-[var(--popular)]"
+              aria-label="Save caption"
+              disabled={busy}
+              onClick={() => void saveCaption()}
+            >
+              <Check size={18} />
+            </button>
+          </div>
+        </div>
+      ) : post.caption ? (
         <p className="whitespace-pre-wrap px-4 pb-3 text-[15px] leading-relaxed">
           {post.caption}
         </p>
-      )}
+      ) : null}
 
       {post.media_type === "image" && post.media_url && (
         // eslint-disable-next-line @next/next/no-img-element

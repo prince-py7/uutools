@@ -770,6 +770,22 @@ export function demoDeletePost(
   return { ok: true };
 }
 
+export function demoUpdatePost(
+  userId: string,
+  postId: string,
+  caption: string
+): { ok: boolean; error?: string; post?: Post } {
+  const state = read();
+  const post = state.posts.find((p) => p.id === postId);
+  if (!post) return { ok: false, error: "Post not found" };
+  if (post.author_id !== userId) {
+    return { ok: false, error: "You can only edit your own posts" };
+  }
+  post.caption = caption.trim();
+  write(state);
+  return { ok: true, post };
+}
+
 export function demoToggleLike(userId: string, postId: string) {
   const state = read();
   const existing = state.likes.find(
@@ -971,6 +987,21 @@ export function demoRespondFriendRequest(
   }
   write(state);
   return { request: req };
+}
+
+export function demoRemoveFriend(userId: string, friendId: string) {
+  const state = read();
+  const req = state.friendRequests.find(
+    (r) =>
+      r.status === "accepted" &&
+      ((r.from_user_id === userId && r.to_user_id === friendId) ||
+        (r.from_user_id === friendId && r.to_user_id === userId))
+  );
+  if (!req) return { error: "Friendship not found" };
+  req.status = "rejected";
+  req.updated_at = new Date().toISOString();
+  write(state);
+  return {};
 }
 
 export function demoAreFriends(a: string, b: string) {
