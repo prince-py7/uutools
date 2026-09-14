@@ -138,6 +138,9 @@ export type Message = {
   conversation_id: string;
   sender_id: string;
   body: string;
+  media_url: string | null;
+  media_type: "image" | "audio" | null;
+  read_at: string | null;
   created_at: string;
 };
 

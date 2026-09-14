@@ -105,7 +105,12 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             return;
           }
           media_url = res.url;
-          media_type = res.mediaType;
+          media_type =
+            res.mediaType === "pdf"
+              ? "pdf"
+              : res.mediaType === "video"
+                ? "video"
+                : "image";
         } else {
           const res = await uploadToSupabase(file, uploadKind, user.id);
           if ("error" in res) {
@@ -115,7 +120,12 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             return;
           }
           media_url = res.url;
-          media_type = res.mediaType;
+          media_type =
+            res.mediaType === "pdf"
+              ? "pdf"
+              : res.mediaType === "video"
+                ? "video"
+                : "image";
         }
       } else if (kind === "social") {
         media_type = "none";

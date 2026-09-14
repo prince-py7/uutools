@@ -6,6 +6,7 @@ const BUCKET: Record<UploadKind, string> = {
   "post-image": "post-media",
   "study-file": "study-files",
   story: "stories",
+  "chat-media": "post-media",
 };
 
 /** Upload to Supabase Storage when configured; callers should fall back to demo data URLs. */
@@ -13,7 +14,10 @@ export async function uploadToSupabase(
   file: File,
   kind: UploadKind,
   userId: string
-): Promise<{ url: string; mediaType: "image" | "pdf" | "video" } | { error: string }> {
+): Promise<
+  | { url: string; mediaType: "image" | "pdf" | "video" | "audio" }
+  | { error: string }
+> {
   const prepared = await prepareUploadFile(file, kind);
   if ("error" in prepared) return { error: prepared.error };
   const supabase = createClient();
@@ -25,7 +29,13 @@ export async function uploadToSupabase(
       contentType: prepared.file.type,
       upsert: false,
     });
-  if (error) return { error: error.message };
+  if (error) {
+    const hint =
+      /bucket|not found|row-level security|policy/i.test(error.message)
+        ? " Check Storage buckets/policies (run supabase/storage.sql)."
+        : "";
+    return { error: `${error.message}${hint}` };
+  }
   const { data } = supabase.storage.from(BUCKET[kind]).getPublicUrl(path);
   return { url: data.publicUrl, mediaType: prepared.mediaType };
 }

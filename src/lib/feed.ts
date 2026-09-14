@@ -7,6 +7,8 @@ export type FeedItem = {
   liked: boolean;
   favoured: boolean;
   comments: Comment[];
+  /** Comment + post authors keyed by profile id */
+  people: Record<string, Profile>;
 };
 
 export async function fetchCollegeFeed(opts: {
@@ -44,11 +46,9 @@ export async function fetchCollegeFeed(opts: {
   const list = (posts as Post[]) || [];
   if (!list.length) return { items: [] };
 
-  const authorIds = [...new Set(list.map((p) => p.author_id))];
   const postIds = list.map((p) => p.id);
 
-  const [authorsRes, likesRes, favsRes, commentsRes] = await Promise.all([
-    supabase.from("profiles").select("*").in("id", authorIds),
+  const [likesRes, favsRes, commentsRes] = await Promise.all([
     supabase
       .from("likes")
       .select("post_id")
@@ -66,9 +66,21 @@ export async function fetchCollegeFeed(opts: {
       .order("created_at", { ascending: true }),
   ]);
 
-  const authors = new Map(
-    ((authorsRes.data as Profile[]) || []).map((p) => [p.id, p])
-  );
+  const comments = (commentsRes.data as Comment[]) || [];
+  const peopleIds = [
+    ...new Set([
+      ...list.map((p) => p.author_id),
+      ...comments.map((c) => c.author_id),
+    ]),
+  ];
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("*")
+    .in("id", peopleIds);
+
+  const people: Record<string, Profile> = {};
+  for (const p of (profiles as Profile[]) || []) people[p.id] = p;
+
   const liked = new Set(
     ((likesRes.data as { post_id: string }[]) || []).map((l) => l.post_id)
   );
@@ -76,7 +88,7 @@ export async function fetchCollegeFeed(opts: {
     ((favsRes.data as { post_id: string }[]) || []).map((f) => f.post_id)
   );
   const commentsByPost = new Map<string, Comment[]>();
-  for (const c of (commentsRes.data as Comment[]) || []) {
+  for (const c of comments) {
     const arr = commentsByPost.get(c.post_id) || [];
     arr.push(c);
     commentsByPost.set(c.post_id, arr);
@@ -84,7 +96,7 @@ export async function fetchCollegeFeed(opts: {
 
   const items: FeedItem[] = [];
   for (const post of list) {
-    const author = authors.get(post.author_id);
+    const author = people[post.author_id];
     if (!author) continue;
     items.push({
       post,
@@ -92,6 +104,7 @@ export async function fetchCollegeFeed(opts: {
       liked: liked.has(post.id),
       favoured: favoured.has(post.id),
       comments: commentsByPost.get(post.id) || [],
+      people,
     });
   }
   return { items };

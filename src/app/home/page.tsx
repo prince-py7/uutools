@@ -230,6 +230,7 @@ export default function HomePage() {
                 initialLiked={item.liked}
                 initialFavoured={item.favoured}
                 initialComments={item.comments}
+                people={item.people}
                 roles={roles}
                 classes={classes}
                 sections={sections}
