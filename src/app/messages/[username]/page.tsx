@@ -36,8 +36,10 @@ export default function MessageThreadPage() {
   const catalog = useDemoCatalog();
   const router = useRouter();
   const toast = useToast();
-  const params = useParams<{ username: string }>();
-  const username = params.username;
+  const params = useParams<{ username: string | string[] }>();
+  const username = Array.isArray(params.username)
+    ? params.username[0]
+    : params.username;
 
   const [body, setBody] = useState("");
   const [error, setError] = useState("");

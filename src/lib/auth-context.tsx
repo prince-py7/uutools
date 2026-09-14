@@ -393,19 +393,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           message: "If that account exists, a reset email was sent.",
         };
       }
-      // Prefer email OTP (6-digit code) instead of a Vercel magic-link URL.
-      // Requires Supabase Auth → Email → OTP enabled, and Reset/Magic templates
-      // that include {{ .Token }} (not only {{ .ConfirmationURL }}).
+      // Prefer email OTP (6-digit code). Also set redirect so if the email
+      // still contains a magic link (Vercel URL), clicking it opens our
+      // /forgot-password?mode=update page after auth/callback.
+      // Requires Supabase templates to include {{ .Token }} for OTP in the email.
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: false,
+          emailRedirectTo: origin
+            ? `${origin}/auth/callback?next=${encodeURIComponent("/forgot-password?mode=update")}`
+            : undefined,
         },
       });
       if (error) return { error: error.message };
       return {
         message:
-          "We emailed a 6-digit OTP. Enter it below with your new password (not the Vercel link).",
+          "Check email for a 6-digit OTP (or click the link → it opens password update on this site). Ignore any random Vercel page text — use the OTP or the link.",
         userId: undefined,
       };
     },
@@ -430,10 +436,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           opts.newPassword
         );
       }
-      if (!opts.email) return { error: "Email is required to verify the OTP" };
-      if (!opts.code.trim()) return { error: "Enter the OTP from your email" };
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
+
+      // Already signed in via magic-link / recovery redirect? Just set password.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session && !opts.code.trim()) {
+        const { error } = await supabase.auth.updateUser({
+          password: opts.newPassword,
+        });
+        if (error) return { error: error.message };
+        return { message: "Password updated. You can log in now." };
+      }
+
+      if (!opts.email) return { error: "Email is required to verify the OTP" };
+      if (!opts.code.trim()) return { error: "Enter the OTP from your email" };
+
       // Try email OTP first (signInWithOtp), then recovery token fallback
       let verified = await supabase.auth.verifyOtp({
         email: opts.email,

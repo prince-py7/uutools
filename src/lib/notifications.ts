@@ -27,7 +27,17 @@ export async function listNotifications(
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(100);
-  if (error) return { items: [], error: error.message };
+  if (error) {
+    // Table missing until patch_notifications.sql is run
+    if (/notifications|schema cache|does not exist/i.test(error.message)) {
+      return {
+        items: [],
+        error:
+          "Notifications table missing. Run supabase/patch_notifications.sql in the Supabase SQL Editor, then refresh.",
+      };
+    }
+    return { items: [], error: error.message };
+  }
   return { items: (data as AppNotification[]) || [] };
 }
 

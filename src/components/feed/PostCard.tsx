@@ -8,6 +8,7 @@ import {
   Share2,
   Star,
   FileText,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
@@ -16,6 +17,7 @@ import { buildBadges } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoAddComment,
+  demoDeletePost,
   demoRecordShare,
   demoToggleFavourite,
   demoToggleLike,
@@ -41,6 +43,7 @@ export function PostCard({
   classes: classesOverride,
   sections: sectionsOverride,
   popularThreshold: thresholdOverride,
+  onDeleted,
 }: {
   post: Post;
   author?: Profile | null;
@@ -52,6 +55,7 @@ export function PostCard({
   classes?: ClassRow[];
   sections?: Section[];
   popularThreshold?: number;
+  onDeleted?: (postId: string) => void;
 }) {
   const { user, demoMode } = useAuth();
   const catalog = useDemoCatalog();
@@ -63,6 +67,7 @@ export function PostCard({
   const [favoured, setFavoured] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [busy, setBusy] = useState(false);
+  const [gone, setGone] = useState(false);
 
   useEffect(() => {
     setPost(initialPost);
@@ -132,7 +137,38 @@ export function PostCard({
     post,
   ]);
 
-  if (!author) return null;
+  async function deleteOwnPost() {
+    if (!user || busy) return;
+    if (user.id !== post.author_id) return;
+    if (!window.confirm("Delete this post? This cannot be undone.")) return;
+    setBusy(true);
+    if (demoMode) {
+      const res = demoDeletePost(user.id, post.id);
+      setBusy(false);
+      if (!res.ok) {
+        toast.error(res.error || "Could not delete");
+        return;
+      }
+      setGone(true);
+      onDeleted?.(post.id);
+      toast.success("Post deleted");
+      return;
+    }
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", post.id)
+      .eq("author_id", user.id);
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setGone(true);
+    onDeleted?.(post.id);
+    toast.success("Post deleted");
+  }
 
   async function toggleLike() {
     if (!user || busy) return;
@@ -249,6 +285,8 @@ export function PostCard({
     setBusy(false);
   }
 
+  if (gone || !author) return null;
+
   return (
     <article className="card overflow-hidden">
       <header className="flex items-start gap-3 p-4">
@@ -273,6 +311,18 @@ export function PostCard({
               : ""}
           </p>
         </div>
+        {user?.id === post.author_id ? (
+          <button
+            type="button"
+            className="btn btn-ghost border-0 text-[var(--muted)] hover:text-[var(--danger)]"
+            aria-label="Delete post"
+            title="Delete post"
+            disabled={busy}
+            onClick={() => void deleteOwnPost()}
+          >
+            <Trash2 size={18} />
+          </button>
+        ) : null}
       </header>
 
       {post.caption && (
