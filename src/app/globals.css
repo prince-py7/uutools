@@ -134,7 +134,8 @@ select {
   border: 1px solid transparent;
 }
 
-.badge-developer {
+.badge-developer,
+.badge-admin {
   background: rgba(245, 166, 35, 0.12);
   color: var(--developer);
   border-color: rgba(245, 166, 35, 0.25);
@@ -150,6 +151,14 @@ select {
   background: rgba(201, 182, 255, 0.1);
   color: var(--professor);
   border-color: rgba(201, 182, 255, 0.25);
+}
+
+.badge-moderator,
+.badge-coordinator,
+.badge-assistant {
+  background: rgba(120, 200, 255, 0.1);
+  color: #7ec8ff;
+  border-color: rgba(120, 200, 255, 0.28);
 }
 
 .badge-verified {

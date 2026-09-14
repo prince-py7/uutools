@@ -61,28 +61,45 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             r.user_id === user.id &&
             r.class_id === user.class_id &&
             (r.role === "cr" || r.role === "professor")
-        )
+        ) ||
+          (catalog.teacherDelegations || []).some(
+            (d) =>
+              d.teacher_id === user.id &&
+              d.college_id === user.college_id &&
+              d.is_active &&
+              d.can_post_official
+          )
       );
       return;
     }
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      const [subRes, roleRes] = await Promise.all([
+      const [subRes, roleRes, delegRes] = await Promise.all([
         supabase.from("subjects").select("*").eq("class_id", user.class_id!),
         supabase
           .from("class_roles")
           .select("role")
           .eq("user_id", user.id)
           .eq("class_id", user.class_id!),
+        user.college_id
+          ? supabase
+              .from("teacher_delegations")
+              .select("can_post_official,is_active")
+              .eq("teacher_id", user.id)
+              .eq("college_id", user.college_id)
+              .eq("is_active", true)
+              .eq("can_post_official", true)
+              .limit(1)
+          : Promise.resolve({ data: [] }),
       ]);
       if (cancelled) return;
       setSubjects((subRes.data as Subject[]) || []);
-      setIsOfficialRole(
-        ((roleRes.data as { role: string }[]) || []).some(
-          (r) => r.role === "cr" || r.role === "professor"
-        )
+      const roleOk = ((roleRes.data as { role: string }[]) || []).some(
+        (r) => r.role === "cr" || r.role === "professor"
       );
+      const delegOk = ((delegRes.data as unknown[]) || []).length > 0;
+      setIsOfficialRole(roleOk || delegOk);
     })();
     return () => {
       cancelled = true;

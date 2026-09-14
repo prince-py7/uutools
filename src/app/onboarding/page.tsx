@@ -7,6 +7,12 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/config";
 import type { ClassRow, College, Section } from "@/lib/types";
+import {
+  fetchUniversityPhotoFile,
+  isUnitedUniversity,
+} from "@/lib/university-photo";
+import { demoFileToDataUrl } from "@/lib/demo-store";
+import { uploadToSupabase } from "@/lib/supabase/upload";
 
 export default function OnboardingPage() {
   const { user, ready, updateProfile, demoMode } = useAuth();
@@ -97,17 +103,36 @@ export default function OnboardingPage() {
       setError("Select college, class, and section");
       return;
     }
-    setSaving(true);
-    setError("");
     if (!enrollmentId.trim()) {
       setError("Enter your College ID / enrollment number");
       return;
     }
+    if (!user) return;
+    setSaving(true);
+    setError("");
+
+    const college = colleges.find((c) => c.id === collegeId) || null;
+    let avatarUrl = user.avatar_url;
+    if (isUnitedUniversity(college)) {
+      const photo = await fetchUniversityPhotoFile(enrollmentId.trim());
+      if (!("error" in photo)) {
+        if (demoMode) {
+          const data = await demoFileToDataUrl(photo.file, "avatar");
+          if (!("error" in data)) avatarUrl = data.url;
+        } else {
+          const up = await uploadToSupabase(photo.file, "avatar", user.id);
+          if (!("error" in up)) avatarUrl = up.url;
+        }
+      }
+      // If photo API fails, continue onboarding without blocking
+    }
+
     const updated = await updateProfile({
       college_id: collegeId,
       class_id: classId,
       section_id: sectionId,
       enrollment_id: enrollmentId.trim(),
+      avatar_url: avatarUrl,
       onboarding_complete: true,
     });
     setSaving(false);
@@ -215,7 +240,9 @@ export default function OnboardingPage() {
                 required
               />
               <p className="mt-1 text-xs text-[var(--muted)]">
-                Your student ID from college (roll / enrollment number).
+                Your student ID from college (roll / enrollment number). For
+                United University we auto-import your photo from the university
+                API when you continue.
               </p>
             </div>
             {error && <p className="text-sm text-[var(--danger)]">{error}</p>}

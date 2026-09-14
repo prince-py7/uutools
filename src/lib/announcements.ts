@@ -11,10 +11,12 @@ import type {
 
 export function canSendClassAnnouncements(
   user: Profile | null,
-  roles: ClassRole[]
+  roles: ClassRole[],
+  canPostOfficialDelegated = false
 ): boolean {
   if (!user) return false;
   if (user.is_admin) return true;
+  if (canPostOfficialDelegated) return true;
   return roles.some(
     (r) =>
       r.user_id === user.id &&

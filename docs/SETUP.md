@@ -18,6 +18,7 @@ In Supabase → SQL Editor, run in order:
 4. If your own profile posts are missing after an older schema, run `supabase/patch_posts_read.sql` (own posts are always readable; peers stay college-scoped)
 5. For College ID / enrollment number on profiles, run `supabase/patch_enrollment_id.sql`
 6. For class announcements + notifications + Web Push, run `supabase/patch_notifications.sql` **(required — without it Notifications shows “table missing”)** (also included in fresh `schema.sql`)
+7. For custom roles (beyond CR/Professor) + role catalog + teacher permissions UI, run `supabase/patch_roles_permissions.sql`
 
 If you previously applied an older schema, re-run the full scripts (policies are dropped/recreated) or apply deltas carefully for Phase-2 tables: `stories`, `story_views`, `friend_requests`, `conversations`, `messages`, `shares`, `teacher_delegations`, and profile column `last_verification_sent_at`.
 
@@ -94,7 +95,9 @@ set is_admin = true, onboarding_complete = true
 where username = 'your_username';
 ```
 
-Then use `/admin` to add colleges/classes/sections/subjects, assign/remove CR/Professor, set the popularity threshold and free-tier notice (`app_settings`: `popular_like_threshold`, `free_tier_notice`), and disable users. Teacher delegation and reports are modeled in SQL but **not granted** in the UI yet.
+That sets the **Admin** label on your profile and posts (and unlocks `/admin`). Assign CR / Professor / custom roles from the Admin panel — those labels appear next to the name on profile and posts.
+
+Then use `/admin` to add colleges/classes/sections/subjects, create custom roles, assign CR/Professor/custom roles, grant teacher permissions (manage subjects / official posts), set the popularity threshold and free-tier notice (`app_settings`: `popular_like_threshold`, `free_tier_notice`), and disable users.
 
 ## 6. Upload limits
 

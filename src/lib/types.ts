@@ -50,12 +50,40 @@ export type Profile = {
   last_verification_sent_at?: string | null;
 };
 
+/** Built-in + admin-defined class roles (slug keys). */
+export type ClassRoleKey =
+  | "cr"
+  | "professor"
+  | "moderator"
+  | "coordinator"
+  | "assistant"
+  | (string & {});
+
 export type ClassRole = {
   id: string;
   user_id: string;
   class_id: string;
   section_id: string | null;
-  role: "cr" | "professor";
+  role: ClassRoleKey;
+};
+
+export type RoleDefinition = {
+  id: string;
+  college_id: string;
+  role_key: string;
+  label: string;
+  created_at?: string;
+};
+
+export type TeacherDelegation = {
+  id: string;
+  college_id: string;
+  teacher_id: string;
+  granted_by: string;
+  can_manage_subjects: boolean;
+  can_post_official: boolean;
+  is_active: boolean;
+  created_at?: string;
 };
 
 export type StudyType =
@@ -145,9 +173,13 @@ export type Message = {
 };
 
 export type BadgeKind =
+  | "admin"
   | "developer"
   | "professor"
   | "cr"
+  | "moderator"
+  | "coordinator"
+  | "assistant"
   | "verified"
   | "unitians_popular";
 
