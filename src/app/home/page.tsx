@@ -2,7 +2,7 @@
 
 import { LoadingState, SkeletonRows } from "@/components/ui/Loading";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { StudyFiltersBar } from "@/components/feed/Composer";
@@ -19,7 +19,7 @@ import { fetchCollegeFeed, type FeedItem } from "@/lib/feed";
 import { createClient } from "@/lib/supabase/client";
 import type { ClassRole, ClassRow, Section } from "@/lib/types";
 
-export default function HomePage() {
+function HomePageInner() {
   const { user, ready, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
@@ -262,5 +262,19 @@ export default function HomePage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <LoadingState label="Loading…" />
+        </div>
+      }
+    >
+      <HomePageInner />
+    </Suspense>
   );
 }
