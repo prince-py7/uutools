@@ -9,7 +9,7 @@ import { LoadingInline } from "@/components/ui/Loading";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { demoInboxPreview } from "@/lib/demo-store";
-import { listInbox, previewText, type InboxItem } from "@/lib/messages";
+import { listInbox, previewText, subscribeInbox, type InboxItem } from "@/lib/messages";
 
 export default function MessagesInboxPage() {
   const { user, ready, demoMode } = useAuth();
@@ -31,15 +31,23 @@ export default function MessagesInboxPage() {
       return;
     }
     let cancelled = false;
+    const refresh = () => {
+      void listInbox(user.id).then((res) => {
+        if (cancelled) return;
+        if (res.error) toast.error(res.error);
+        setLiveItems(res.items);
+        setLoading(false);
+      });
+    };
     setLoading(true);
-    void listInbox(user.id).then((res) => {
-      if (cancelled) return;
-      if (res.error) toast.error(res.error);
-      setLiveItems(res.items);
-      setLoading(false);
-    });
+    refresh();
+    const unsub = subscribeInbox(user.id, refresh);
+    const onLocal = () => refresh();
+    window.addEventListener("unitians:messages-changed", onLocal);
     return () => {
       cancelled = true;
+      unsub();
+      window.removeEventListener("unitians:messages-changed", onLocal);
     };
   }, [user, demoMode, toast, catalog.messages, catalog.conversations]);
 

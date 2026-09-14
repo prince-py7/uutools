@@ -31,7 +31,7 @@ import { Avatar } from "@/components/ui/Badge";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { countPendingFriendRequests } from "@/lib/friends";
 import { countUnreadNotifications } from "@/lib/notifications";
-import { countUnreadMessages } from "@/lib/messages";
+import { countUnreadMessages, subscribeInbox } from "@/lib/messages";
 import { enablePushNotifications, pushSupported } from "@/lib/push";
 import { demoUnreadMessageCount } from "@/lib/demo-store";
 import { ShellProvider, useShell } from "@/lib/shell-context";
@@ -165,11 +165,19 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       return;
     }
     let cancelled = false;
-    void countUnreadMessages(user.id).then((n) => {
-      if (!cancelled) setMsgCount(n);
-    });
+    const refresh = () => {
+      void countUnreadMessages(user.id).then((n) => {
+        if (!cancelled) setMsgCount(n);
+      });
+    };
+    refresh();
+    const unsub = subscribeInbox(user.id, refresh);
+    const onLocal = () => refresh();
+    window.addEventListener("unitians:messages-changed", onLocal);
     return () => {
       cancelled = true;
+      unsub();
+      window.removeEventListener("unitians:messages-changed", onLocal);
     };
   }, [user, demoMode, catalog.messages, catalog.conversations, pathname]);
 
