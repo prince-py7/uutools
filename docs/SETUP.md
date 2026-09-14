@@ -84,9 +84,9 @@ Uploads must be signed in; files go under `{auth.uid()}/...`.
 
 Without these, the app runs in **demo mode** (localStorage). With them set, the full app is live against Supabase: auth, feed, friends, DMs, stories, search, favourites, timetable, and admin — demo/localStorage is only the offline fallback when env is missing.
 
-## 5. Bootstrap developer admin
+## 5. Bootstrap developer admin (SQL by username only)
 
-After your first signup:
+Admin cannot be granted from the app UI. After signup, promote **only** by username in Supabase SQL Editor:
 
 ```sql
 update public.profiles
@@ -94,7 +94,7 @@ set is_admin = true, onboarding_complete = true
 where username = 'your_username';
 ```
 
-Then use `/admin` to add colleges/classes/sections/subjects, assign/remove CR/Professor, set the popularity threshold and free-tier notice (`app_settings`: `popular_like_threshold`, `free_tier_notice`), and disable users. Teacher delegation and reports are modeled in SQL but **not granted** in the UI yet.
+Refresh / re-login, then open `/admin`. Use it to add colleges/classes/sections/subjects, assign/remove CR/Professor, set the popularity threshold and free-tier notice (`app_settings`: `popular_like_threshold`, `free_tier_notice`), and disable users. Teacher delegation and reports are modeled in SQL but **not granted** in the UI yet.
 
 ## 6. Upload limits
 

@@ -392,7 +392,8 @@ export default function AdminPage() {
         <header>
           <h1 className="text-2xl font-bold">Admin</h1>
           <p className="text-sm text-[var(--muted)]">
-            Manage colleges, classes, roles, and UNITIANS POPULAR threshold
+            Manage colleges, classes, roles, and UNITIANS POPULAR threshold.
+            Admin access is granted only via SQL by username (no UI promote).
           </p>
           {message && (
             <p className="mt-2 text-sm text-[var(--popular)]">{message}</p>

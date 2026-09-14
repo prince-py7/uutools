@@ -247,30 +247,23 @@ export default function ProfileSettingsPage() {
           ) : null}
         </section>
 
-        {user.is_admin ? (
-          <section className="card space-y-2 p-5">
-            <h2 className="text-sm font-semibold">Admin</h2>
-            <p className="text-xs text-[var(--muted)]">
-              Admin panel is at{" "}
-              <Link href="/admin" className="text-[var(--accent)]">
-                /admin
-              </Link>
-              . It appears in the side menu when your profile has{" "}
-              <code className="text-[var(--text)]">is_admin</code> set.
-            </p>
-            <p className="text-xs text-[var(--muted)]">
-              To become admin, run in Supabase SQL:{" "}
-              <code className="block break-all rounded bg-[#141414] p-2 text-[11px] text-[var(--text)]">
-                {`update profiles set is_admin = true where username = 'yourname';`}
-              </code>{" "}
-              then open{" "}
-              <Link href="/admin" className="text-[var(--accent)]">
-                /admin
-              </Link>
-              .
-            </p>
-          </section>
-        ) : null}
+        <section className="card space-y-2 p-5">
+          <h2 className="text-sm font-semibold">Admin</h2>
+          <p className="text-xs text-[var(--muted)]">
+            Admin is SQL-only — there is no in-app “make admin” button. Grant
+            access by username in Supabase:
+          </p>
+          <code className="block break-all rounded bg-[#141414] p-2 text-[11px] text-[var(--text)]">
+            {`update public.profiles set is_admin = true where username = '${user.username}';`}
+          </code>
+          <p className="text-xs text-[var(--muted)]">
+            After running that, refresh / re-login. Then open{" "}
+            <Link href="/admin" className="text-[var(--accent)]">
+              /admin
+            </Link>
+            {user.is_admin ? " (you already have admin)." : "."}
+          </p>
+        </section>
 
         <p className="px-1 text-sm text-[var(--muted)]">
           Profile photo, bio, and campus fields:{" "}
