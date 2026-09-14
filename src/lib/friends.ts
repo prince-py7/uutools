@@ -135,3 +135,32 @@ export async function countPendingFriendRequests(
     .eq("status", "pending");
   return count || 0;
 }
+
+/** Remove an accepted friendship (either side). */
+export async function removeFriend(
+  userId: string,
+  friendId: string
+): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { data: rows, error: findErr } = await supabase
+    .from("friend_requests")
+    .select("id")
+    .eq("status", "accepted")
+    .or(
+      `and(from_user_id.eq.${userId},to_user_id.eq.${friendId}),and(from_user_id.eq.${friendId},to_user_id.eq.${userId})`
+    );
+  if (findErr) return { error: findErr.message };
+  if (!rows?.length) return { error: "Friendship not found" };
+  const { error } = await supabase
+    .from("friend_requests")
+    .update({
+      status: "rejected",
+      updated_at: new Date().toISOString(),
+    })
+    .in(
+      "id",
+      rows.map((r) => r.id)
+    );
+  if (error) return { error: error.message };
+  return {};
+}

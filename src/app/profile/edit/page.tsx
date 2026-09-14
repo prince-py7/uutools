@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoadingInline } from "@/components/ui/Loading";
+import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/config";
@@ -13,8 +14,7 @@ import { uploadToSupabase } from "@/lib/supabase/upload";
 import type { ClassRow, College, Section, Socials } from "@/lib/types";
 
 export default function EditProfilePage() {
-  const { user, ready, updateProfile, requestEmailVerification, confirmEmailOtp, changePassword, demoMode } =
-    useAuth();
+  const { user, ready, updateProfile, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
   const toast = useToast();
@@ -30,16 +30,6 @@ export default function EditProfilePage() {
   const [saving, setSaving] = useState(false);
   const [statusNote, setStatusNote] = useState("");
   const [formError, setFormError] = useState("");
-  const [verifyMsg, setVerifyMsg] = useState("");
-  const [verifyError, setVerifyError] = useState("");
-  const [verifying, setVerifying] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [otpBusy, setOtpBusy] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordMsg, setPasswordMsg] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordBusy, setPasswordBusy] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const [loadingDir, setLoadingDir] = useState(true);
   const [colleges, setColleges] = useState<College[]>([]);
@@ -141,53 +131,6 @@ export default function EditProfilePage() {
     }, 700);
   }
 
-  async function onVerifyEmail() {
-    setVerifying(true);
-    setVerifyMsg("");
-    setVerifyError("");
-    const res = await requestEmailVerification();
-    setVerifying(false);
-    if (res.error) setVerifyError(res.error);
-    else {
-      setVerifyMsg(
-        res.demoCode
-          ? `${res.message || "OTP sent"} (demo code: ${res.demoCode})`
-          : res.message || "OTP sent to your email"
-      );
-    }
-  }
-
-  async function onConfirmOtp(e: FormEvent) {
-    e.preventDefault();
-    setOtpBusy(true);
-    setVerifyError("");
-    setVerifyMsg("");
-    const res = await confirmEmailOtp(otp);
-    setOtpBusy(false);
-    if (res.error) setVerifyError(res.error);
-    else {
-      setVerifyMsg(res.message || "Email verified");
-      setOtp("");
-      toast.success("Email verified");
-    }
-  }
-
-  async function onChangePassword(e: FormEvent) {
-    e.preventDefault();
-    setPasswordBusy(true);
-    setPasswordError("");
-    setPasswordMsg("");
-    const res = await changePassword(currentPassword, newPassword);
-    setPasswordBusy(false);
-    if (res.error) setPasswordError(res.error);
-    else {
-      setPasswordMsg(res.message || "Password updated");
-      setCurrentPassword("");
-      setNewPassword("");
-      toast.success("Password updated");
-    }
-  }
-
   async function onAvatarChange(file: File | undefined) {
     if (!file || !user) return;
     setAvatarError("");
@@ -214,107 +157,12 @@ export default function EditProfilePage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-xl space-y-4 px-3 py-4 md:px-0">
-        <h1 className="text-2xl font-bold">Edit profile</h1>
-
-        <section className="card space-y-3 p-5">
-          <h2 className="text-sm font-semibold">Account</h2>
-          <div className="text-sm">
-            <p className="text-[var(--muted)]">Username</p>
-            <p className="font-medium">@{user.username}</p>
-          </div>
-          <div className="text-sm">
-            <p className="text-[var(--muted)]">Email</p>
-            <p className="font-medium">{user.email}</p>
-            <p className="mt-1 text-xs">
-              {user.email_verified ? (
-                <span className="text-[var(--popular)]">Verified</span>
-              ) : (
-                <span className="text-[var(--muted)]">Not verified</span>
-              )}
-            </p>
-          </div>
-          {!user.email_verified ? (
-            <div className="space-y-2">
-              <button
-                type="button"
-                className="btn btn-ghost w-full"
-                disabled={verifying}
-                onClick={() => void onVerifyEmail()}
-              >
-                {verifying ? "Sending OTP…" : "Send verification OTP"}
-              </button>
-              <form className="flex gap-2" onSubmit={(e) => void onConfirmOtp(e)}>
-                <input
-                  className="input"
-                  inputMode="numeric"
-                  placeholder="6-digit OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={8}
-                  required
-                />
-                <button
-                  className="btn btn-primary shrink-0"
-                  disabled={otpBusy || otp.trim().length < 4}
-                >
-                  {otpBusy ? "…" : "Verify"}
-                </button>
-              </form>
-            </div>
-          ) : null}
-          {verifyMsg ? (
-            <p className="text-xs text-[var(--popular)]">{verifyMsg}</p>
-          ) : null}
-          {verifyError ? (
-            <p className="text-xs text-[var(--danger)]">{verifyError}</p>
-          ) : null}
-        </section>
-
-        <section className="card space-y-3 p-5">
-          <h2 className="text-sm font-semibold">Change password</h2>
-          {!user.email_verified ? (
-            <p className="text-xs text-[var(--muted)]">
-              Verify your email first, then you can change your password.
-            </p>
-          ) : (
-            <form className="space-y-2" onSubmit={(e) => void onChangePassword(e)}>
-              <input
-                className="input"
-                type="password"
-                placeholder="Current password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-              <input
-                className="input"
-                type="password"
-                placeholder="New password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={6}
-                autoComplete="new-password"
-              />
-              <button className="btn btn-primary w-full" disabled={passwordBusy}>
-                {passwordBusy ? "Updating…" : "Update password"}
-              </button>
-            </form>
-          )}
-          {passwordMsg ? (
-            <p className="text-xs text-[var(--popular)]">{passwordMsg}</p>
-          ) : null}
-          {passwordError ? (
-            <p className="text-xs text-[var(--danger)]">{passwordError}</p>
-          ) : null}
-          {user.is_admin ? (
-            <p className="text-xs text-[var(--muted)]">
-              Admin panel: open <Link href="/admin" className="text-[var(--accent)]">/admin</Link>{" "}
-              from the side menu (Admin).
-            </p>
-          ) : null}
-        </section>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-bold">Edit profile</h1>
+          <Link href="/profile/settings" className="text-sm text-[var(--accent)]">
+            Account settings
+          </Link>
+        </div>
 
         <form className="card space-y-4 p-5" onSubmit={(e) => void onSubmit(e)}>
           <div>
@@ -427,22 +275,15 @@ export default function EditProfilePage() {
             <label className="mb-1.5 block text-sm text-[var(--muted)]">
               Avatar
             </label>
-            <input
-              type="file"
+            <UploadTile
               accept="image/jpeg,image/png,image/webp,image/gif"
-              className="mb-2 block w-full text-sm"
-              onChange={(e) => void onAvatarChange(e.target.files?.[0])}
+              onPick={(f) => void onAvatarChange(f)}
+              previewUrl={avatarUrl || null}
+              label="Photo"
+              size={96}
             />
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt=""
-                className="mb-2 h-16 w-16 rounded-full object-cover"
-              />
-            ) : null}
             {avatarError ? (
-              <p className="text-xs text-[var(--danger)]">{avatarError}</p>
+              <p className="mt-2 text-xs text-[var(--danger)]">{avatarError}</p>
             ) : null}
           </div>
 

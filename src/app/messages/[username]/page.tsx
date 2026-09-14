@@ -53,6 +53,7 @@ export default function MessageThreadPage() {
   const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -192,6 +193,7 @@ export default function MessageThreadPage() {
         setError("");
       }
       setSending(false);
+      requestAnimationFrame(() => inputRef.current?.focus());
       return;
     }
     const res = await sendMessage(convId, user.id, text, media);
@@ -204,6 +206,7 @@ export default function MessageThreadPage() {
       setLiveThread((prev) => [...prev, res.message!]);
     }
     setSending(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   async function onSend(e: FormEvent) {
@@ -364,6 +367,7 @@ export default function MessageThreadPage() {
             {recording ? <Square size={16} /> : <Mic size={18} />}
           </button>
           <input
+            ref={inputRef}
             className="input min-h-11 flex-1"
             placeholder="Message…"
             value={body}

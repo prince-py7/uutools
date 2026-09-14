@@ -39,8 +39,6 @@ See **[docs/SETUP.md](docs/SETUP.md)** for:
 3. Env vars + Vercel deploy  
 4. Bootstrap first admin  
 
-Legacy static UUID tools live in `legacy-uutools/`.
-
 ## Tests
 
 ```bash
