@@ -622,7 +622,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <h2 className="text-[15px] font-semibold">Friend requests</h2>
+              <h2 className="text-[15px] font-semibold">Friends</h2>
               <button className="icon-btn" onClick={closeRequests} aria-label="Close">
                 <X size={18} />
               </button>
