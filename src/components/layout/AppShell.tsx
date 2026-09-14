@@ -31,7 +31,9 @@ import { Avatar } from "@/components/ui/Badge";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { countPendingFriendRequests } from "@/lib/friends";
 import { countUnreadNotifications } from "@/lib/notifications";
+import { countUnreadMessages } from "@/lib/messages";
 import { enablePushNotifications, pushSupported } from "@/lib/push";
+import { demoUnreadMessageCount } from "@/lib/demo-store";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { verificationReminder } from "@/lib/verification";
 
@@ -97,9 +99,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const [pendingCount, setPendingCount] = useState(0);
   const [notifCount, setNotifCount] = useState(0);
+  const [msgCount, setMsgCount] = useState(0);
   const [isStaff, setIsStaff] = useState(false);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -150,6 +154,24 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [user, demoMode, catalog, pathname]);
+
+  useEffect(() => {
+    if (!user) {
+      setMsgCount(0);
+      return;
+    }
+    if (demoMode) {
+      setMsgCount(demoUnreadMessageCount(user.id));
+      return;
+    }
+    let cancelled = false;
+    void countUnreadMessages(user.id).then((n) => {
+      if (!cancelled) setMsgCount(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, demoMode, catalog.messages, catalog.conversations, pathname]);
 
   useEffect(() => {
     if (!user || typeof window === "undefined") {
@@ -353,7 +375,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           </Link>
           <Link
             href="/messages"
-            className={`grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a] ${
+            className={`relative grid h-10 w-10 place-items-center rounded-lg hover:bg-[#1a1a1a] ${
               pathname.startsWith("/messages") ? "text-white" : "text-[var(--text)]"
             }`}
             aria-label="Messages"
@@ -363,6 +385,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               size={22}
               strokeWidth={pathname.startsWith("/messages") ? 2.25 : 1.75}
             />
+            {msgCount > 0 ? (
+              <span className="absolute top-1.5 right-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">
+                {msgCount > 9 ? "9+" : msgCount}
+              </span>
+            ) : null}
           </Link>
         </div>
       </header>
@@ -483,8 +510,14 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                   onClick={() => {
                     void (async () => {
                       setPushBusy(true);
-                      await enablePushNotifications(user.id);
+                      setPushError("");
+                      const res = await enablePushNotifications(user.id);
                       setPushBusy(false);
+                      if (!res.ok) {
+                        console.warn(res.error);
+                        setPushError(res.error || "Could not enable alerts");
+                        return;
+                      }
                       try {
                         localStorage.setItem(PUSH_PROMPT_KEY, "1");
                       } catch {
@@ -497,6 +530,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                   {pushBusy ? "Enabling…" : "Enable"}
                 </button>
               </div>
+              {pushError ? (
+                <p className="mt-2 text-[11px] text-[var(--danger)]">{pushError}</p>
+              ) : null}
             </div>
           ) : null}
           {children}

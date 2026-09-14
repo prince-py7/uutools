@@ -111,7 +111,7 @@ function seed(): DemoState {
         id: adminId,
         username: "admin",
         email: "admin@united.ac.in",
-        email_verified: true,
+        email_verified: false,
         display_name: "Prince",
         bio: "Building UNITIANS",
         avatar_url: null,
@@ -129,7 +129,7 @@ function seed(): DemoState {
         id: crId,
         username: "riya_cr",
         email: "riya@united.ac.in",
-        email_verified: true,
+        email_verified: false,
         display_name: "Riya Verma",
         bio: "CR — BCA B",
         avatar_url: null,
@@ -147,7 +147,7 @@ function seed(): DemoState {
         id: profId,
         username: "prof_sharma",
         email: "sharma@united.ac.in",
-        email_verified: true,
+        email_verified: false,
         display_name: "Prof. Sharma",
         bio: "Faculty — DBMS",
         avatar_url: null,
@@ -405,7 +405,12 @@ function migrate(raw: DemoState): DemoState {
     storyViews: raw.storyViews || [],
     friendRequests: raw.friendRequests || [],
     conversations: raw.conversations || [],
-    messages: raw.messages || [],
+    messages: (raw.messages || []).map((m) => ({
+      ...m,
+      media_url: m.media_url ?? null,
+      media_type: m.media_type ?? null,
+      read_at: m.read_at ?? null,
+    })),
     freeTierNotice: raw.freeTierNotice || base.freeTierNotice,
   };
 }
@@ -512,13 +517,135 @@ export function demoRequestEmailVerification(userId: string) {
   const state = read();
   const profile = state.profiles.find((p) => p.id === userId);
   if (!profile) return { error: "User not found" };
+  if (profile.email_verified) return { error: "Email is already verified" };
   const gate = canSendVerification(profile);
   if (!gate.ok) return { error: gate.error };
+  const code = String(Math.floor(100000 + Math.random() * 900000));
   profile.last_verification_sent_at = new Date().toISOString();
-  // Demo: mark verified immediately after "send"
+  write(state);
+  try {
+    localStorage.setItem(
+      `uu-email-otp:${userId}`,
+      JSON.stringify({ code, exp: Date.now() + 10 * 60 * 1000 })
+    );
+  } catch {
+    /* ignore */
+  }
+  return {
+    profile,
+    message: `Demo OTP sent. Use code ${code} (valid 10 min).`,
+    demoCode: code,
+  };
+}
+
+export function demoConfirmEmailOtp(userId: string, code: string) {
+  const state = read();
+  const profile = state.profiles.find((p) => p.id === userId);
+  if (!profile) return { error: "User not found" };
+  if (profile.email_verified) return { profile, message: "Already verified" };
+  let stored: { code: string; exp: number } | null = null;
+  try {
+    const raw = localStorage.getItem(`uu-email-otp:${userId}`);
+    stored = raw ? (JSON.parse(raw) as { code: string; exp: number }) : null;
+  } catch {
+    stored = null;
+  }
+  if (!stored || stored.exp < Date.now()) {
+    return { error: "OTP expired. Request a new code." };
+  }
+  if (stored.code !== code.trim()) return { error: "Invalid OTP" };
   profile.email_verified = true;
   write(state);
-  return { profile };
+  try {
+    localStorage.removeItem(`uu-email-otp:${userId}`);
+  } catch {
+    /* ignore */
+  }
+  return { profile, message: "Email verified" };
+}
+
+export function demoRequestPasswordReset(identifier: string) {
+  const state = read();
+  const key = identifier.trim().toLowerCase();
+  const profile = state.profiles.find(
+    (p) =>
+      p.username.toLowerCase() === key || p.email.toLowerCase() === key
+  );
+  if (!profile) {
+    // Don't leak whether the account exists
+    return {
+      message: "If that account exists, a reset code was sent.",
+    };
+  }
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  try {
+    localStorage.setItem(
+      `uu-reset-otp:${profile.id}`,
+      JSON.stringify({ code, exp: Date.now() + 10 * 60 * 1000 })
+    );
+  } catch {
+    /* ignore */
+  }
+  return {
+    message: `Demo reset OTP for @${profile.username}: ${code}`,
+    demoCode: code,
+    userId: profile.id,
+    email: profile.email,
+  };
+}
+
+export function demoConfirmPasswordReset(
+  userId: string,
+  code: string,
+  newPassword: string
+) {
+  if (newPassword.length < 6) {
+    return { error: "Password must be at least 6 characters" };
+  }
+  const state = read();
+  const profile = state.profiles.find((p) => p.id === userId);
+  if (!profile) return { error: "User not found" };
+  let stored: { code: string; exp: number } | null = null;
+  try {
+    const raw = localStorage.getItem(`uu-reset-otp:${userId}`);
+    stored = raw ? (JSON.parse(raw) as { code: string; exp: number }) : null;
+  } catch {
+    stored = null;
+  }
+  if (!stored || stored.exp < Date.now()) {
+    return { error: "OTP expired. Request a new code." };
+  }
+  if (stored.code !== code.trim()) return { error: "Invalid OTP" };
+  state.passwords[profile.username] = newPassword;
+  write(state);
+  try {
+    localStorage.removeItem(`uu-reset-otp:${userId}`);
+  } catch {
+    /* ignore */
+  }
+  return { message: "Password updated. You can log in now." };
+}
+
+export function demoChangePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+) {
+  const state = read();
+  const profile = state.profiles.find((p) => p.id === userId);
+  if (!profile) return { error: "User not found" };
+  if (!profile.email_verified) {
+    return { error: "Verify your email before changing password" };
+  }
+  if (state.passwords[profile.username] !== currentPassword) {
+    return { error: "Current password is incorrect" };
+  }
+  if (newPassword.length < 6) {
+    return { error: "New password must be at least 6 characters" };
+  }
+  state.passwords[profile.username] = newPassword;
+  write(state);
+  return { message: "Password updated" };
 }
 
 export function demoLogout() {
@@ -798,7 +925,8 @@ export function demoGetOrCreateConversation(userId: string, otherId: string) {
 export function demoSendMessage(
   conversationId: string,
   senderId: string,
-  body: string
+  body: string,
+  media?: { url: string; type: "image" | "audio" } | null
 ) {
   const state = read();
   const conv = state.conversations.find((c) => c.id === conversationId);
@@ -807,12 +935,15 @@ export function demoSendMessage(
     return { error: "Not a member" };
   }
   const text = body.trim();
-  if (!text) return { error: "Empty message" };
+  if (!text && !media?.url) return { error: "Empty message" };
   const msg: Message = {
     id: id(),
     conversation_id: conversationId,
     sender_id: senderId,
     body: text,
+    media_url: media?.url || null,
+    media_type: media?.type || null,
+    read_at: null,
     created_at: new Date().toISOString(),
   };
   state.messages.push(msg);
@@ -821,11 +952,81 @@ export function demoSendMessage(
   return { message: msg };
 }
 
+export function demoMarkConversationRead(
+  conversationId: string,
+  userId: string
+) {
+  const state = read();
+  const now = new Date().toISOString();
+  for (const m of state.messages) {
+    if (
+      m.conversation_id === conversationId &&
+      m.sender_id !== userId &&
+      !m.read_at
+    ) {
+      m.read_at = now;
+    }
+  }
+  write(state);
+}
+
+export function demoUnreadMessageCount(userId: string): number {
+  const state = read();
+  const myConvs = new Set(
+    state.conversations
+      .filter((c) => c.user_a_id === userId || c.user_b_id === userId)
+      .map((c) => c.id)
+  );
+  return state.messages.filter(
+    (m) =>
+      myConvs.has(m.conversation_id) &&
+      m.sender_id !== userId &&
+      !m.read_at
+  ).length;
+}
+
+export function demoInboxPreview(userId: string) {
+  const state = read();
+  return state.conversations
+    .filter((c) => c.user_a_id === userId || c.user_b_id === userId)
+    .map((conversation) => {
+      const peerId =
+        conversation.user_a_id === userId
+          ? conversation.user_b_id
+          : conversation.user_a_id;
+      const peer = state.profiles.find((p) => p.id === peerId);
+      const msgs = state.messages
+        .filter((m) => m.conversation_id === conversation.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const lastMessage = msgs[0] || null;
+      const unreadCount = msgs.filter(
+        (m) => m.sender_id !== userId && !m.read_at
+      ).length;
+      return peer
+        ? { conversation, peer, lastMessage, unreadCount }
+        : null;
+    })
+    .filter(Boolean)
+    .sort(
+      (a, b) =>
+        new Date(b!.conversation.updated_at).getTime() -
+        new Date(a!.conversation.updated_at).getTime()
+    ) as {
+    conversation: Conversation;
+    peer: Profile;
+    lastMessage: Message | null;
+    unreadCount: number;
+  }[];
+}
+
 /** Demo file → data URL (respects MIME/size). */
 export async function demoFileToDataUrl(
   file: File,
   kind: UploadKind
-): Promise<{ url: string; mediaType: "image" | "pdf" | "video" } | { error: string }> {
+): Promise<
+  | { url: string; mediaType: "image" | "pdf" | "video" | "audio" }
+  | { error: string }
+> {
   const { prepareUploadFile } = await import("./uploads");
   const prepared = await prepareUploadFile(file, kind);
   if ("error" in prepared) return { error: prepared.error };

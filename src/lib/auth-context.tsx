@@ -11,10 +11,14 @@ import {
 } from "react";
 import { isSupabaseConfigured } from "@/lib/config";
 import {
+  demoChangePassword,
+  demoConfirmEmailOtp,
+  demoConfirmPasswordReset,
   demoCurrentUser,
   demoLogin,
   demoLogout,
   demoRequestEmailVerification,
+  demoRequestPasswordReset,
   demoSignup,
   demoUpdateProfile,
   getDemoState,
@@ -37,7 +41,32 @@ type AuthContextValue = {
   }) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<Profile | null>;
-  requestEmailVerification: () => Promise<{ error?: string; message?: string }>;
+  requestEmailVerification: () => Promise<{
+    error?: string;
+    message?: string;
+    demoCode?: string;
+  }>;
+  confirmEmailOtp: (
+    code: string
+  ) => Promise<{ error?: string; message?: string }>;
+  requestPasswordReset: (
+    identifier: string
+  ) => Promise<{
+    error?: string;
+    message?: string;
+    demoCode?: string;
+    userId?: string;
+  }>;
+  confirmPasswordReset: (opts: {
+    userId?: string;
+    email?: string;
+    code: string;
+    newPassword: string;
+  }) => Promise<{ error?: string; message?: string }>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<{ error?: string; message?: string }>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -256,20 +285,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (demoMode) {
       const res = demoRequestEmailVerification(user.id);
       if (res.error) return { error: res.error };
-      setUser(res.profile ?? null);
-      return { message: "Email verified (demo). Full access was already available." };
+      if (res.profile) setUser(res.profile);
+      return {
+        message: res.message || "OTP sent to your email",
+        demoCode: res.demoCode,
+      };
     }
 
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
-    const { error } = await supabase.auth.resend({
-      type: "signup",
+    // Prefer email OTP when enabled in Supabase Auth settings
+    const { error } = await supabase.auth.signInWithOtp({
       email: user.email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { shouldCreateUser: false },
     });
-    if (error) return { error: error.message };
+    if (error) {
+      // Fallback to signup confirmation link
+      const resent = await supabase.auth.resend({
+        type: "signup",
+        email: user.email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (resent.error) return { error: resent.error.message };
+      await supabase
+        .from("profiles")
+        .update({ last_verification_sent_at: new Date().toISOString() })
+        .eq("id", user.id);
+      setUser({
+        ...user,
+        last_verification_sent_at: new Date().toISOString(),
+      });
+      return {
+        message:
+          "Verification link sent to your email. Open it to verify, then return here.",
+      };
+    }
     await supabase
       .from("profiles")
       .update({ last_verification_sent_at: new Date().toISOString() })
@@ -278,11 +330,142 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...user,
       last_verification_sent_at: new Date().toISOString(),
     });
-    return {
-      message:
-        "Verification email sent. You already have full access — verify when you can.",
-    };
+    return { message: "OTP sent to your email. Enter the 6-digit code below." };
   }, [demoMode, user]);
+
+  const confirmEmailOtp = useCallback(
+    async (code: string) => {
+      if (!user) return { error: "Not signed in" };
+      if (!code.trim()) return { error: "Enter the OTP" };
+      if (demoMode) {
+        const res = demoConfirmEmailOtp(user.id, code);
+        if (res.error) return { error: res.error };
+        if (res.profile) setUser(res.profile);
+        return { message: res.message || "Email verified" };
+      }
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: user.email,
+        token: code.trim(),
+        type: "email",
+      });
+      if (error) return { error: error.message };
+      const verified = Boolean(data.user?.email_confirmed_at);
+      await supabase
+        .from("profiles")
+        .update({ email_verified: verified })
+        .eq("id", user.id);
+      setUser({ ...user, email_verified: verified });
+      return {
+        message: verified
+          ? "Email verified"
+          : "Code accepted. Refresh if status is still pending.",
+      };
+    },
+    [demoMode, user]
+  );
+
+  const requestPasswordReset = useCallback(
+    async (identifier: string) => {
+      if (!identifier.trim()) return { error: "Enter username or email" };
+      if (demoMode) {
+        const res = demoRequestPasswordReset(identifier);
+        return {
+          message: res.message,
+          demoCode: res.demoCode,
+          userId: res.userId,
+        };
+      }
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const email = identifier.includes("@")
+        ? identifier.trim()
+        : (
+            await supabase
+              .from("profiles")
+              .select("email")
+              .eq("username", identifier.trim())
+              .maybeSingle()
+          ).data?.email;
+      if (!email) {
+        return {
+          message: "If that account exists, a reset email was sent.",
+        };
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/forgot-password?mode=update`,
+      });
+      if (error) return { error: error.message };
+      return {
+        message:
+          "Password reset email sent. Open the link, then set a new password.",
+      };
+    },
+    [demoMode]
+  );
+
+  const confirmPasswordReset = useCallback(
+    async (opts: {
+      userId?: string;
+      email?: string;
+      code: string;
+      newPassword: string;
+    }) => {
+      if (opts.newPassword.length < 6) {
+        return { error: "Password must be at least 6 characters" };
+      }
+      if (demoMode) {
+        if (!opts.userId) return { error: "Missing reset session" };
+        return demoConfirmPasswordReset(
+          opts.userId,
+          opts.code,
+          opts.newPassword
+        );
+      }
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      if (opts.code && opts.email) {
+        const verified = await supabase.auth.verifyOtp({
+          email: opts.email,
+          token: opts.code.trim(),
+          type: "recovery",
+        });
+        if (verified.error) return { error: verified.error.message };
+      }
+      const { error } = await supabase.auth.updateUser({
+        password: opts.newPassword,
+      });
+      if (error) return { error: error.message };
+      return { message: "Password updated. You can log in now." };
+    },
+    [demoMode]
+  );
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!user) return { error: "Not signed in" };
+      if (!user.email_verified) {
+        return { error: "Verify your email before changing password" };
+      }
+      if (demoMode) {
+        return demoChangePassword(user.id, currentPassword, newPassword);
+      }
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { error: signErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (signErr) return { error: "Current password is incorrect" };
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) return { error: error.message };
+      return { message: "Password updated" };
+    },
+    [demoMode, user]
+  );
 
   const value = useMemo(
     () => ({
@@ -295,6 +478,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       updateProfile,
       requestEmailVerification,
+      confirmEmailOtp,
+      requestPasswordReset,
+      confirmPasswordReset,
+      changePassword,
     }),
     [
       ready,
@@ -306,6 +493,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       updateProfile,
       requestEmailVerification,
+      confirmEmailOtp,
+      requestPasswordReset,
+      confirmPasswordReset,
+      changePassword,
     ]
   );
 

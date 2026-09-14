@@ -75,6 +75,12 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <p className="mt-3 text-center text-sm">
+            <Link href="/forgot-password" className="text-[var(--accent)]">
+              Forgot password?
+            </Link>
+          </p>
+
           {demoMode && (
             <div className="mt-5 border-t border-[var(--line)] pt-4 text-xs leading-relaxed text-[var(--muted)]">
               <p className="mb-1 font-medium text-[var(--text)]">Try demo login</p>

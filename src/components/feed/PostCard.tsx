@@ -36,6 +36,7 @@ export function PostCard({
   initialLiked,
   initialFavoured,
   initialComments,
+  people: peopleOverride,
   roles: rolesOverride,
   classes: classesOverride,
   sections: sectionsOverride,
@@ -46,6 +47,7 @@ export function PostCard({
   initialLiked?: boolean;
   initialFavoured?: boolean;
   initialComments?: Comment[];
+  people?: Record<string, Profile>;
   roles?: ClassRole[];
   classes?: ClassRow[];
   sections?: Section[];
@@ -365,12 +367,16 @@ export function PostCard({
             const a =
               c.author_id === author.id
                 ? author
-                : catalog.profiles.find((p) => p.id === c.author_id);
+                : peopleOverride?.[c.author_id] ||
+                  catalog.profiles.find((p) => p.id === c.author_id);
+            const label =
+              a?.display_name?.trim() ||
+              (c.author_id === user?.id ? "You" : null) ||
+              a?.username ||
+              "User";
             return (
               <div key={c.id} className="text-sm">
-                <span className="font-semibold">
-                  {a?.display_name ?? (c.author_id === user?.id ? "You" : "User")}
-                </span>{" "}
+                <span className="font-semibold">{label}</span>{" "}
                 <span className="text-[var(--muted)]">{c.body}</span>
               </div>
             );

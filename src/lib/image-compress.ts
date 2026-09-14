@@ -114,7 +114,7 @@ export async function compressImageFile(
 
 /** Target compressed size by upload kind (under the hard validate limit). */
 export function compressTargetBytes(
-  kind: "avatar" | "post-image" | "study-file" | "story"
+  kind: "avatar" | "post-image" | "study-file" | "story" | "chat-media"
 ): number {
   switch (kind) {
     case "avatar":
@@ -124,6 +124,8 @@ export function compressTargetBytes(
     case "study-file":
       return 9 * 1024 * 1024;
     case "story":
+      return 8 * 1024 * 1024;
+    case "chat-media":
       return 8 * 1024 * 1024;
     default:
       return 9 * 1024 * 1024;

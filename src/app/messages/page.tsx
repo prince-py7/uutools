@@ -1,15 +1,15 @@
 "use client";
 
-import { LoadingInline } from "@/components/ui/Loading";
-
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { Avatar } from "@/components/ui/Badge";
+import { LoadingInline } from "@/components/ui/Loading";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
-import { listInbox, type InboxItem } from "@/lib/messages";
+import { demoInboxPreview } from "@/lib/demo-store";
+import { listInbox, previewText, type InboxItem } from "@/lib/messages";
 
 export default function MessagesInboxPage() {
   const { user, ready, demoMode } = useAuth();
@@ -41,27 +41,14 @@ export default function MessagesInboxPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, demoMode, toast]);
+  }, [user, demoMode, toast, catalog.messages, catalog.conversations]);
 
-  const inbox = useMemo(() => {
-    if (!user) return [] as InboxItem[];
-    if (!demoMode) return liveItems;
-    return catalog.conversations
-      .filter((c) => c.user_a_id === user.id || c.user_b_id === user.id)
-      .sort(
-        (a, b) =>
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      )
-      .map((conversation) => {
-        const peerId =
-          conversation.user_a_id === user.id
-            ? conversation.user_b_id
-            : conversation.user_a_id;
-        const peer = catalog.profiles.find((p) => p.id === peerId);
-        return peer ? { conversation, peer } : null;
-      })
-      .filter(Boolean) as InboxItem[];
-  }, [user, demoMode, liveItems, catalog.conversations, catalog.profiles]);
+  // Recompute on every catalog/live change so demo previews stay fresh.
+  const inbox: InboxItem[] = !user
+    ? []
+    : demoMode
+      ? demoInboxPreview(user.id)
+      : liveItems;
 
   if (!user) return null;
 
@@ -70,27 +57,48 @@ export default function MessagesInboxPage() {
       <div className="mx-auto flex max-w-xl flex-col gap-3 px-3 pt-3 md:px-4">
         <h1 className="text-xl font-semibold">Messages</h1>
         <p className="text-xs text-[var(--muted)]">
-          Private chats with friends in your college. Group chats are coming soon.
-          scope.
+          Private chats with friends. Group chats are coming soon.
         </p>
         <div className="card divide-y divide-[var(--line)]">
           {loading ? (
             <LoadingInline label="Loading messages…" />
           ) : inbox.length === 0 ? (
             <p className="p-5 text-sm text-[var(--muted)]">
-              No conversations yet. Accept a friend request, then tap Message.
+              No conversations yet. Accept a friend request, then tap Message on
+              their profile.
             </p>
           ) : (
-            inbox.map(({ conversation, peer }) => (
+            inbox.map(({ conversation, peer, lastMessage, unreadCount }) => (
               <Link
                 key={conversation.id}
                 href={`/messages/${peer.username}`}
                 className="flex items-center gap-3 p-4 hover:bg-[#1a1a1a]"
               >
                 <Avatar name={peer.display_name} url={peer.avatar_url} />
-                <div>
-                  <p className="font-semibold">{peer.display_name}</p>
-                  <p className="text-xs text-[var(--muted)]">@{peer.username}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={`truncate font-semibold ${
+                        unreadCount ? "text-white" : ""
+                      }`}
+                    >
+                      {peer.display_name}
+                    </p>
+                    {unreadCount > 0 ? (
+                      <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[var(--accent)] px-1.5 text-[10px] font-bold text-black">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p
+                    className={`line-clamp-2 text-xs ${
+                      unreadCount
+                        ? "font-medium text-[var(--text)]"
+                        : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {previewText(lastMessage)}
+                  </p>
                 </div>
               </Link>
             ))

@@ -5,7 +5,20 @@ import type { Conversation, Message, Profile } from "@/lib/types";
 export type InboxItem = {
   conversation: Conversation;
   peer: Profile;
+  lastMessage: Message | null;
+  unreadCount: number;
 };
+
+function peerId(c: Conversation, userId: string) {
+  return c.user_a_id === userId ? c.user_b_id : c.user_a_id;
+}
+
+export function previewText(m: Message | null): string {
+  if (!m) return "Say hello";
+  if (m.media_type === "image") return m.body?.trim() ? m.body : "Photo";
+  if (m.media_type === "audio") return m.body?.trim() ? m.body : "Voice message";
+  return m.body?.trim() || "Message";
+}
 
 export async function listInbox(
   userId: string
@@ -20,27 +33,56 @@ export async function listInbox(
   const conversations = (data as Conversation[]) || [];
   if (!conversations.length) return { items: [] };
 
-  const peerIds = conversations.map((c) =>
-    c.user_a_id === userId ? c.user_b_id : c.user_a_id
-  );
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("*")
-    .in("id", peerIds);
-  const byId = new Map(
-    ((profiles as Profile[]) || []).map((p) => [p.id, p])
-  );
+  const peerIds = conversations.map((c) => peerId(c, userId));
+  const convIds = conversations.map((c) => c.id);
+
+  const [{ data: profiles }, { data: messages }] = await Promise.all([
+    supabase.from("profiles").select("*").in("id", peerIds),
+    supabase
+      .from("messages")
+      .select("*")
+      .in("conversation_id", convIds)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const byId = new Map(((profiles as Profile[]) || []).map((p) => [p.id, p]));
+  const latestByConv = new Map<string, Message>();
+  const unreadByConv = new Map<string, number>();
+  for (const raw of (messages as Message[]) || []) {
+    if (!latestByConv.has(raw.conversation_id)) {
+      latestByConv.set(raw.conversation_id, {
+        ...raw,
+        media_url: raw.media_url ?? null,
+        media_type: raw.media_type ?? null,
+        read_at: raw.read_at ?? null,
+      });
+    }
+    if (raw.sender_id !== userId && !raw.read_at) {
+      unreadByConv.set(
+        raw.conversation_id,
+        (unreadByConv.get(raw.conversation_id) || 0) + 1
+      );
+    }
+  }
 
   const items: InboxItem[] = [];
   for (const conversation of conversations) {
-    const peerId =
-      conversation.user_a_id === userId
-        ? conversation.user_b_id
-        : conversation.user_a_id;
-    const peer = byId.get(peerId);
-    if (peer) items.push({ conversation, peer });
+    const peer = byId.get(peerId(conversation, userId));
+    if (!peer) continue;
+    items.push({
+      conversation,
+      peer,
+      lastMessage: latestByConv.get(conversation.id) || null,
+      unreadCount: unreadByConv.get(conversation.id) || 0,
+    });
   }
   return { items };
+}
+
+export async function countUnreadMessages(userId: string): Promise<number> {
+  const { items, error } = await listInbox(userId);
+  if (error) return 0;
+  return items.reduce((n, i) => n + i.unreadCount, 0);
 }
 
 export async function getOrCreateConversation(
@@ -79,16 +121,37 @@ export async function listMessages(
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
   if (error) return { messages: [], error: error.message };
-  return { messages: (data as Message[]) || [] };
+  return {
+    messages: ((data as Message[]) || []).map((m) => ({
+      ...m,
+      media_url: m.media_url ?? null,
+      media_type: m.media_type ?? null,
+      read_at: m.read_at ?? null,
+    })),
+  };
+}
+
+export async function markConversationRead(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  const supabase = createClient();
+  await supabase
+    .from("messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .neq("sender_id", userId)
+    .is("read_at", null);
 }
 
 export async function sendMessage(
   conversationId: string,
   senderId: string,
-  body: string
+  body: string,
+  media?: { url: string; type: "image" | "audio" } | null
 ): Promise<{ message?: Message; error?: string }> {
   const text = body.trim();
-  if (!text) return { error: "Empty message" };
+  if (!text && !media?.url) return { error: "Empty message" };
   const supabase = createClient();
   const { data, error } = await supabase
     .from("messages")
@@ -96,11 +159,24 @@ export async function sendMessage(
       conversation_id: conversationId,
       sender_id: senderId,
       body: text,
+      media_url: media?.url || null,
+      media_type: media?.type || null,
     })
     .select("*")
     .single();
   if (error) return { error: error.message };
-  return { message: data as Message };
+  await supabase
+    .from("conversations")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", conversationId);
+  return {
+    message: {
+      ...(data as Message),
+      media_url: (data as Message).media_url ?? null,
+      media_type: (data as Message).media_type ?? null,
+      read_at: (data as Message).read_at ?? null,
+    },
+  };
 }
 
 export async function findProfileByUsername(
