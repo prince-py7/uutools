@@ -22,7 +22,7 @@ import { validateTimetableSlot } from "./timetable";
 import { canSendVerification } from "./verification";
 import type { UploadKind } from "./uploads";
 
-const KEY = "uu-community-demo-v3";
+const KEY = "uu-community-demo-v4";
 
 export type DemoState = {
   sessionUserId: string | null;
@@ -381,13 +381,77 @@ function seed(): DemoState {
         id: "fr-1",
         from_user_id: stu2,
         to_user_id: stu1,
-        status: "pending",
-        created_at: new Date(now - 1000 * 60 * 60 * 2).toISOString(),
-        updated_at: new Date(now - 1000 * 60 * 60 * 2).toISOString(),
+        status: "accepted",
+        created_at: new Date(now - 1000 * 60 * 60 * 8).toISOString(),
+        updated_at: new Date(now - 1000 * 60 * 60 * 6).toISOString(),
+      },
+      {
+        id: "fr-2",
+        from_user_id: crId,
+        to_user_id: stu1,
+        status: "accepted",
+        created_at: new Date(now - 1000 * 60 * 60 * 24).toISOString(),
+        updated_at: new Date(now - 1000 * 60 * 60 * 20).toISOString(),
       },
     ],
-    conversations: [],
-    messages: [],
+    conversations: [
+      {
+        id: "conv-aarav-neha",
+        user_a_id: stu1 < stu2 ? stu1 : stu2,
+        user_b_id: stu1 < stu2 ? stu2 : stu1,
+        created_at: new Date(now - 1000 * 60 * 60 * 5).toISOString(),
+        updated_at: new Date(now - 1000 * 60 * 12).toISOString(),
+      },
+      {
+        id: "conv-aarav-riya",
+        user_a_id: stu1 < crId ? stu1 : crId,
+        user_b_id: stu1 < crId ? crId : stu1,
+        created_at: new Date(now - 1000 * 60 * 60 * 10).toISOString(),
+        updated_at: new Date(now - 1000 * 60 * 45).toISOString(),
+      },
+    ],
+    messages: [
+      {
+        id: "msg-1",
+        conversation_id: "conv-aarav-neha",
+        sender_id: stu2,
+        body: "Hey! Notes for DBMS?",
+        media_url: null,
+        media_type: null,
+        read_at: new Date(now - 1000 * 60 * 30).toISOString(),
+        created_at: new Date(now - 1000 * 60 * 40).toISOString(),
+      },
+      {
+        id: "msg-2",
+        conversation_id: "conv-aarav-neha",
+        sender_id: stu1,
+        body: "Sure, sending after class.",
+        media_url: null,
+        media_type: null,
+        read_at: new Date(now - 1000 * 60 * 20).toISOString(),
+        created_at: new Date(now - 1000 * 60 * 28).toISOString(),
+      },
+      {
+        id: "msg-3",
+        conversation_id: "conv-aarav-neha",
+        sender_id: stu2,
+        body: "Perfect 👍",
+        media_url: null,
+        media_type: null,
+        read_at: null,
+        created_at: new Date(now - 1000 * 60 * 12).toISOString(),
+      },
+      {
+        id: "msg-4",
+        conversation_id: "conv-aarav-riya",
+        sender_id: crId,
+        body: "Class cancelled tomorrow — announcement posted.",
+        media_url: null,
+        media_type: null,
+        read_at: null,
+        created_at: new Date(now - 1000 * 60 * 45).toISOString(),
+      },
+    ],
   };
 }
 
