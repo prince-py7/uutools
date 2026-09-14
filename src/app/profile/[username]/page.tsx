@@ -15,6 +15,7 @@ import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/config";
 import type {
   ClassRole,
+  RoleDefinition,
   ClassRow,
   College,
   Post,
@@ -28,6 +29,7 @@ type ProfileBundle = {
   classRow: ClassRow | null;
   section: Section | null;
   roles: ClassRole[];
+  roleDefinitions: RoleDefinition[];
   posts: Post[];
   popularThreshold: number;
 };
@@ -80,6 +82,7 @@ export default function ProfilePage() {
           classRow: catalog.classes.find((c) => c.id === profile.class_id) || null,
           section: catalog.sections.find((s) => s.id === profile.section_id) || null,
           roles: catalog.roles.filter((r) => r.user_id === profile.id),
+          roleDefinitions: catalog.roleDefinitions || [],
           posts: catalog.posts.filter((p) => p.author_id === profile.id),
           popularThreshold: catalog.popularThreshold,
         });
@@ -134,7 +137,7 @@ export default function ProfilePage() {
           return;
         }
 
-        const [collegeRes, classRes, sectionRes, rolesRes, postsRes, settingsRes] =
+        const [collegeRes, classRes, sectionRes, rolesRes, roleDefsRes, postsRes, settingsRes] =
           await Promise.all([
             p.college_id
               ? supabase.from("colleges").select("*").eq("id", p.college_id).maybeSingle()
@@ -146,6 +149,12 @@ export default function ProfilePage() {
               ? supabase.from("sections").select("*").eq("id", p.section_id).maybeSingle()
               : Promise.resolve({ data: null }),
             supabase.from("class_roles").select("*").eq("user_id", p.id),
+            p.college_id
+              ? supabase
+                  .from("role_definitions")
+                  .select("*")
+                  .eq("college_id", p.college_id)
+              : Promise.resolve({ data: [] }),
             supabase
               .from("posts")
               .select("*")
@@ -175,9 +184,8 @@ export default function ProfilePage() {
           college: (collegeRes.data as College) || null,
           classRow: (classRes.data as ClassRow) || null,
           section: (sectionRes.data as Section) || null,
-          roles: ((rolesRes.data as ClassRole[]) || []).filter(
-            (r) => r.role === "cr" || r.role === "professor"
-          ),
+          roles: (rolesRes.data as ClassRole[]) || [],
+          roleDefinitions: (roleDefsRes.data as RoleDefinition[]) || [],
           posts: (postsRes.data as Post[]) || [],
           popularThreshold,
         });
@@ -205,6 +213,7 @@ export default function ProfilePage() {
       classes: bundle.classRow ? [bundle.classRow] : [],
       sections: bundle.section ? [bundle.section] : [],
       popularThreshold: bundle.popularThreshold,
+      roleDefinitions: bundle.roleDefinitions,
     });
   }, [bundle]);
 

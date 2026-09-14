@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
@@ -11,6 +11,11 @@ import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/config";
 import { demoFileToDataUrl } from "@/lib/demo-store";
 import { uploadToSupabase } from "@/lib/supabase/upload";
+import {
+  fetchUniversityPhotoFile,
+  fileToDataUrl,
+  isUnitedUniversity,
+} from "@/lib/university-photo";
 import type { ClassRow, College, Section, Socials } from "@/lib/types";
 
 export default function EditProfilePage() {
@@ -31,6 +36,9 @@ export default function EditProfilePage() {
   const [statusNote, setStatusNote] = useState("");
   const [formError, setFormError] = useState("");
   const [avatarError, setAvatarError] = useState("");
+  const [uuPhotoBusy, setUuPhotoBusy] = useState(false);
+  const [uuPhotoNote, setUuPhotoNote] = useState("");
+  const pendingUuFile = useRef<File | null>(null);
   const [loadingDir, setLoadingDir] = useState(true);
   const [colleges, setColleges] = useState<College[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
@@ -97,6 +105,35 @@ export default function EditProfilePage() {
     [sections, classId]
   );
 
+  const selectedCollege = useMemo(
+    () => colleges.find((c) => c.id === collegeId) || null,
+    [colleges, collegeId]
+  );
+  const uuCollege = isUnitedUniversity(selectedCollege);
+
+  async function importUniversityPhoto() {
+    if (!user) return;
+    const id = enrollmentId.trim();
+    if (!id) {
+      setAvatarError("Enter College ID / UUID first");
+      return;
+    }
+    setUuPhotoBusy(true);
+    setAvatarError("");
+    setUuPhotoNote("");
+    const res = await fetchUniversityPhotoFile(id);
+    setUuPhotoBusy(false);
+    if ("error" in res) {
+      setAvatarError(res.error);
+      return;
+    }
+    pendingUuFile.current = res.file;
+    const preview = await fileToDataUrl(res.file);
+    setAvatarUrl(preview);
+    setUuPhotoNote("University photo loaded — click Save changes to apply.");
+    toast.success("Photo ready — save profile to apply");
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!user) return;
@@ -107,10 +144,39 @@ export default function EditProfilePage() {
     setSaving(true);
     setFormError("");
     setStatusNote("Saving…");
+
+    let nextAvatar = avatarUrl || null;
+    if (pendingUuFile.current) {
+      if (demoMode) {
+        const data = await demoFileToDataUrl(pendingUuFile.current, "avatar");
+        if ("error" in data) {
+          setSaving(false);
+          setStatusNote("");
+          setFormError(data.error);
+          return;
+        }
+        nextAvatar = data.url;
+      } else {
+        const up = await uploadToSupabase(
+          pendingUuFile.current,
+          "avatar",
+          user.id
+        );
+        if ("error" in up) {
+          setSaving(false);
+          setStatusNote("");
+          setFormError(up.error);
+          return;
+        }
+        nextAvatar = up.url;
+      }
+      pendingUuFile.current = null;
+    }
+
     const updated = await updateProfile({
       display_name: displayName.trim() || user.username,
       bio,
-      avatar_url: avatarUrl || null,
+      avatar_url: nextAvatar,
       enrollment_id: enrollmentId.trim() || null,
       college_id: collegeId,
       class_id: classId,
@@ -134,6 +200,8 @@ export default function EditProfilePage() {
   async function onAvatarChange(file: File | undefined) {
     if (!file || !user) return;
     setAvatarError("");
+    setUuPhotoNote("");
+    pendingUuFile.current = null;
     if (demoMode) {
       const res = await demoFileToDataUrl(file, "avatar");
       if ("error" in res) {
@@ -179,14 +247,37 @@ export default function EditProfilePage() {
 
           <div>
             <label className="mb-1.5 block text-sm text-[var(--muted)]">
-              College ID / Enrollment no.
+              College ID / UUID / Enrollment no.
             </label>
             <input
               className="input"
               value={enrollmentId}
               onChange={(e) => setEnrollmentId(e.target.value)}
-              placeholder="e.g. UU24BCA0123"
+              placeholder="e.g. university UUID / roll no."
             />
+            {uuCollege ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-ghost h-9 text-xs"
+                  disabled={uuPhotoBusy || !enrollmentId.trim()}
+                  onClick={() => void importUniversityPhoto()}
+                >
+                  {uuPhotoBusy
+                    ? "Fetching photo…"
+                    : "Import photo from university"}
+                </button>
+                {uuPhotoNote ? (
+                  <span className="text-xs text-[var(--popular)]">
+                    {uuPhotoNote}
+                  </span>
+                ) : (
+                  <span className="text-xs text-[var(--muted)]">
+                    Preview only until you save.
+                  </span>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div className="border-t border-[var(--line)] pt-4">

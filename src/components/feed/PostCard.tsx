@@ -140,6 +140,7 @@ export function PostCard({
       sections,
       post,
       popularThreshold: thresholdOverride ?? catalog.popularThreshold,
+      roleDefinitions: catalog.roleDefinitions,
     });
   }, [
     author,

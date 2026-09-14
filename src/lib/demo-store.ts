@@ -2,6 +2,8 @@
 
 import type {
   ClassRole,
+  RoleDefinition,
+  TeacherDelegation,
   ClassRow,
   College,
   Comment,
@@ -32,6 +34,8 @@ export type DemoState = {
   subjects: Subject[];
   profiles: Profile[];
   roles: ClassRole[];
+  roleDefinitions: RoleDefinition[];
+  teacherDelegations: TeacherDelegation[];
   posts: Post[];
   likes: { user_id: string; post_id: string }[];
   comments: Comment[];
@@ -198,6 +202,8 @@ function seed(): DemoState {
         last_verification_sent_at: null,
       },
     ],
+    roleDefinitions: [],
+    teacherDelegations: [],
     roles: [
       {
         id: "role-cr",
@@ -476,6 +482,8 @@ function migrate(raw: DemoState): DemoState {
       read_at: m.read_at ?? null,
     })),
     freeTierNotice: raw.freeTierNotice || base.freeTierNotice,
+    roleDefinitions: raw.roleDefinitions || [],
+    teacherDelegations: raw.teacherDelegations || [],
   };
 }
 
