@@ -393,13 +393,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           message: "If that account exists, a reset email was sent.",
         };
       }
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/forgot-password?mode=update`,
+      // Prefer email OTP (6-digit code) instead of a Vercel magic-link URL.
+      // Requires Supabase Auth → Email → OTP enabled, and Reset/Magic templates
+      // that include {{ .Token }} (not only {{ .ConfirmationURL }}).
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+        },
       });
       if (error) return { error: error.message };
       return {
         message:
-          "Password reset email sent. Open the link, then set a new password.",
+          "We emailed a 6-digit OTP. Enter it below with your new password (not the Vercel link).",
+        userId: undefined,
       };
     },
     [demoMode]
@@ -423,16 +430,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           opts.newPassword
         );
       }
+      if (!opts.email) return { error: "Email is required to verify the OTP" };
+      if (!opts.code.trim()) return { error: "Enter the OTP from your email" };
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      if (opts.code && opts.email) {
-        const verified = await supabase.auth.verifyOtp({
+      // Try email OTP first (signInWithOtp), then recovery token fallback
+      let verified = await supabase.auth.verifyOtp({
+        email: opts.email,
+        token: opts.code.trim(),
+        type: "email",
+      });
+      if (verified.error) {
+        verified = await supabase.auth.verifyOtp({
           email: opts.email,
           token: opts.code.trim(),
           type: "recovery",
         });
-        if (verified.error) return { error: verified.error.message };
       }
+      if (verified.error) return { error: verified.error.message };
       const { error } = await supabase.auth.updateUser({
         password: opts.newPassword,
       });

@@ -67,18 +67,34 @@ const EXT_MIME: Record<string, string> = {
   heif: "image/heif",
 };
 
-/** Normalize browser quirks (empty type, image/jpg, extension-only). */
-export function normalizeFileMime(file: File): string {
+const HINT: Record<UploadKind, string> = {
+  avatar: "Try JPG, PNG, or WebP.",
+  "post-image": "Try JPG, PNG, or WebP.",
+  "study-file": "Try JPG, PNG, WebP, or PDF.",
+  story: "Try JPG, PNG, WebP, MP4, or WebM.",
+  "chat-media": "Try JPG, PNG, WebP, or a voice note (WebM/OGG/MP3).",
+};
+
+/** Strip `audio/webm;codecs=opus` → `audio/webm` and other browser quirks. */
+export function normalizeFileMime(file: File, kind?: UploadKind): string {
   let t = (file.type || "").toLowerCase().trim();
+  if (t.includes(";")) t = t.split(";")[0]!.trim();
   if (t === "image/jpg") t = "image/jpeg";
   if (t === "audio/x-m4a") t = "audio/mp4";
-  if (t) return t;
   const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  if (
+    kind === "chat-media" &&
+    (t === "video/webm" || t === "application/octet-stream" || !t) &&
+    ext === "webm"
+  ) {
+    return "audio/webm";
+  }
+  if (t) return t;
   return EXT_MIME[ext] || "";
 }
 
-export function withNormalizedMime(file: File): File {
-  const mime = normalizeFileMime(file);
+export function withNormalizedMime(file: File, kind?: UploadKind): File {
+  const mime = normalizeFileMime(file, kind);
   if (!mime || mime === file.type) return file;
   return new File([file], file.name, {
     type: mime,
@@ -95,7 +111,8 @@ export function validateUpload(
   const mime = normalizeFileMime(
     file instanceof File
       ? file
-      : new File([], file.name || "file", { type: file.type })
+      : new File([], file.name || "file", { type: file.type }),
+    kind
   );
   if (mime === "image/heic" || mime === "image/heif") {
     return {
@@ -107,7 +124,7 @@ export function validateUpload(
   if (!mime || !allowed.includes(mime)) {
     return {
       ok: false,
-      error: `Unsupported file type (${mime || file.type || "unknown"}). Try JPG, PNG, or WebP.`,
+      error: `Unsupported file type (${mime || file.type || "unknown"}). ${HINT[kind]}`,
     };
   }
   if (file.size > MAX[kind]) {
@@ -129,7 +146,8 @@ export function validateUpload(
 export function mediaTypeFromMime(
   mime: string
 ): "image" | "pdf" | "video" | "audio" | "none" {
-  const t = mime === "image/jpg" ? "image/jpeg" : mime;
+  let t = mime === "image/jpg" ? "image/jpeg" : mime.toLowerCase();
+  if (t.includes(";")) t = t.split(";")[0]!.trim();
   if (PDF_MIMES.includes(t as (typeof PDF_MIMES)[number])) return "pdf";
   if (VIDEO_MIMES.includes(t as (typeof VIDEO_MIMES)[number])) return "video";
   if (AUDIO_MIMES.includes(t as (typeof AUDIO_MIMES)[number])) return "audio";
@@ -152,7 +170,7 @@ export async function prepareUploadFile(
   | { file: File; mediaType: "image" | "pdf" | "video" | "audio" }
   | { error: string }
 > {
-  let next = withNormalizedMime(file);
+  let next = withNormalizedMime(file, kind);
   if (next.type.startsWith("image/") && next.type !== "image/gif") {
     const { compressImageFile, compressTargetBytes } = await import(
       "@/lib/image-compress"
@@ -166,5 +184,11 @@ export async function prepareUploadFile(
   }
   const v = validateUpload(next, kind);
   if (!v.ok) return { error: v.error };
+  if (next.type.includes(";")) {
+    next = new File([next], next.name, {
+      type: next.type.split(";")[0]!.trim(),
+      lastModified: next.lastModified,
+    });
+  }
   return { file: next, mediaType: v.mediaType };
 }

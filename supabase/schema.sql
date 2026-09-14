@@ -692,6 +692,10 @@ create policy messages_insert on public.messages for insert to authenticated
     and public.is_conversation_member(conversation_id)
   );
 
+create policy messages_update on public.messages for update to authenticated
+  using (public.is_conversation_member(conversation_id) or public.is_admin())
+  with check (public.is_conversation_member(conversation_id) or public.is_admin());
+
 -- Storage buckets (create in dashboard): avatars, post-media, study-files, stories
 -- MIME allow: image/jpeg, image/png, image/webp, image/gif, application/pdf, video/mp4, video/webm
 -- Study files max 10 MB (enforce in client + storage policies)

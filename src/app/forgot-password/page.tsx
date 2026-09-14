@@ -81,8 +81,8 @@ function ForgotPasswordForm() {
             <h1 className="mt-4 text-xl font-semibold">Reset password</h1>
             <p className="mt-2 text-sm text-[var(--muted)]">
               {step === "request"
-                ? "We will email a code / link to reset your password."
-                : "Enter the code and choose a new password."}
+                ? "We will email a 6-digit OTP. Enter it on the next step (ignore any Vercel link in the mail)."
+                : "Enter the OTP from email and choose a new password."}
             </p>
           </div>
 

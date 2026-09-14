@@ -39,25 +39,22 @@ export async function enablePushNotifications(
     return { ok: false, error: "Push is not supported on this device" };
   }
   if (!VAPID_PUBLIC) {
-    // Demo / local: still allow enabling permission + SW so UI works.
-    if (!isSupabaseConfigured()) {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        return { ok: false, error: "Notification permission was denied" };
-      }
-      await ensureServiceWorker();
-      try {
-        localStorage.setItem(`unitians-push:${userId}`, JSON.stringify(["demo-local"]));
-      } catch {
-        /* ignore */
-      }
-      return { ok: true };
+    // Soft-enable: browser permission + SW without remote Web Push.
+    // Generate keys: npx web-push generate-vapid-keys  (see docs/SETUP.md)
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      return { ok: false, error: "Notification permission was denied" };
     }
-    return {
-      ok: false,
-      error:
-        "Push keys are not configured yet (NEXT_PUBLIC_VAPID_PUBLIC_KEY). In-app alerts still work.",
-    };
+    await ensureServiceWorker();
+    try {
+      localStorage.setItem(
+        `unitians-push:${userId}`,
+        JSON.stringify(["local-no-vapid"])
+      );
+    } catch {
+      /* ignore */
+    }
+    return { ok: true };
   }
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {

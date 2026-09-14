@@ -26,6 +26,7 @@ import {
   listMessages,
   markConversationRead,
   sendMessage,
+  subscribeConversationMessages,
 } from "@/lib/messages";
 import { uploadToSupabase } from "@/lib/supabase/upload";
 import type { Message, Profile } from "@/lib/types";
@@ -122,6 +123,18 @@ export default function MessageThreadPage() {
     catalog.conversations,
     reloadLive,
   ]);
+
+  // Live thread updates without full page refresh
+  useEffect(() => {
+    if (!user || demoMode || !convId) return;
+    return subscribeConversationMessages(convId, () => {
+      void (async () => {
+        const msgs = await listMessages(convId);
+        if (!msgs.error) setLiveThread(msgs.messages);
+        await markConversationRead(convId, user.id);
+      })();
+    });
+  }, [user, demoMode, convId]);
 
   const thread = useMemo(() => {
     if (!convId) return [] as Message[];
@@ -221,11 +234,10 @@ export default function MessageThreadPage() {
       };
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
-        });
+        // Always use clean audio/webm (MediaRecorder often adds ;codecs=opus)
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         const file = new File([blob], `voice-${Date.now()}.webm`, {
-          type: blob.type || "audio/webm",
+          type: "audio/webm",
         });
         void (async () => {
           const uploaded = await uploadChatFile(file);

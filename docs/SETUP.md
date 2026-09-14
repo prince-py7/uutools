@@ -52,6 +52,36 @@ VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:admin@yourdomain.com
 ```
 
+### Web Push keys (fix “Push keys are not configured”)
+
+Without VAPID keys the app still enables **browser notification permission** and in-app alerts. For real push to phones:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Put the **public** key in Vercel / `.env.local` as `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, and the **private** key as `VAPID_PRIVATE_KEY` (server-only). Redeploy after saving.
+
+### Forgot-password OTP (not a Vercel URL)
+
+Supabase default emails include a magic link that points at your Site URL (often Vercel). The app now requests an **email OTP**.
+
+In Supabase → Authentication → Email Templates (Magic Link / Reset):
+
+- Include `{{ .Token }}` (the 6-digit code) in the body
+- You can keep or remove `{{ .ConfirmationURL }}`
+
+Also set Authentication → Providers → Email → enable OTP / email codes.
+
+### Storage RLS upload errors
+
+If posts/chat show `new row violates row-level security policy`, re-run in SQL Editor:
+
+1. `supabase/storage.sql` (buckets + policies; allows chat audio MIME on `post-media`)
+2. `supabase/patch_messages_media.sql` (message media columns, **messages UPDATE** for read receipts, realtime)
+
+Uploads must be signed in; files go under `{auth.uid()}/...`.
+
 Without these, the app runs in **demo mode** (localStorage). With them set, the full app is live against Supabase: auth, feed, friends, DMs, stories, search, favourites, timetable, and admin — demo/localStorage is only the offline fallback when env is missing.
 
 ## 5. Bootstrap developer admin

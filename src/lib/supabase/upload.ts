@@ -20,19 +20,27 @@ export async function uploadToSupabase(
 > {
   const prepared = await prepareUploadFile(file, kind);
   if ("error" in prepared) return { error: prepared.error };
+
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // Path MUST start with auth.uid() for storage RLS policies
+  const ownerId = user?.id || userId;
+  if (!ownerId) return { error: "Not signed in — cannot upload" };
+
   const ext = prepared.file.name.split(".").pop() || "bin";
-  const path = `${userId}/${Date.now()}.${ext}`;
+  const path = `${ownerId}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage
     .from(BUCKET[kind])
     .upload(path, prepared.file, {
-      contentType: prepared.file.type,
+      contentType: prepared.file.type.split(";")[0],
       upsert: false,
     });
   if (error) {
     const hint =
-      /bucket|not found|row-level security|policy/i.test(error.message)
-        ? " Check Storage buckets/policies (run supabase/storage.sql)."
+      /bucket|not found|row-level security|policy|violates/i.test(error.message)
+        ? " Check Storage buckets/policies (re-run supabase/storage.sql in Supabase SQL Editor)."
         : "";
     return { error: `${error.message}${hint}` };
   }

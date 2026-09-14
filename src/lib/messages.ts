@@ -134,14 +134,64 @@ export async function listMessages(
 export async function markConversationRead(
   conversationId: string,
   userId: string
-): Promise<void> {
+): Promise<{ error?: string }> {
   const supabase = createClient();
-  await supabase
+  const { error } = await supabase
     .from("messages")
     .update({ read_at: new Date().toISOString() })
     .eq("conversation_id", conversationId)
     .neq("sender_id", userId)
     .is("read_at", null);
+  if (error) return { error: error.message };
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("unitians:messages-changed"));
+  }
+  return {};
+}
+
+/** Live updates for a thread (INSERT/UPDATE). */
+export function subscribeConversationMessages(
+  conversationId: string,
+  onChange: () => void
+): () => void {
+  const supabase = createClient();
+  const channel = supabase
+    .channel(`messages:${conversationId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "messages",
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      () => onChange()
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+/** Inbox / badge refresh when any message changes for this user. */
+export function subscribeInbox(
+  userId: string,
+  onChange: () => void
+): () => void {
+  const supabase = createClient();
+  const channel = supabase
+    .channel(`inbox:${userId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "messages" },
+      () => onChange()
+    )
+    .subscribe();
+  const poll = window.setInterval(onChange, 12000);
+  return () => {
+    window.clearInterval(poll);
+    void supabase.removeChannel(channel);
+  };
 }
 
 export async function sendMessage(
