@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
+import { MoreMenu } from "@/components/ui/MoreMenu";
 import { useToast } from "@/components/ui/Toast";
 import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
@@ -364,31 +365,29 @@ export function PostCard({
           </p>
         </div>
         {isOwner ? (
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              className="btn btn-ghost border-0 text-[var(--muted)] hover:text-white"
-              aria-label="Edit caption"
-              title="Edit caption"
-              disabled={busy}
-              onClick={() => {
-                setEditCaption(post.caption || "");
-                setEditing(true);
-              }}
-            >
-              <Pencil size={18} />
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost border-0 text-[var(--muted)] hover:text-[var(--danger)]"
-              aria-label="Delete post"
-              title="Delete post"
-              disabled={busy}
-              onClick={() => void deleteOwnPost()}
-            >
-              <Trash2 size={18} />
-            </button>
-          </div>
+          <MoreMenu
+            label="Post options"
+            items={[
+              {
+                label: "Edit caption",
+                icon: <Pencil size={16} />,
+                disabled: busy,
+                onClick: () => {
+                  setEditCaption(post.caption || "");
+                  setEditing(true);
+                },
+              },
+              {
+                label: "Delete post",
+                icon: <Trash2 size={16} />,
+                danger: true,
+                disabled: busy,
+                onClick: () => {
+                  void deleteOwnPost();
+                },
+              },
+            ]}
+          />
         ) : null}
       </header>
 

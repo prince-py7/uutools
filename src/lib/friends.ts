@@ -8,6 +8,11 @@ export type FriendBundle = {
   requests: FriendRequest[];
 };
 
+export function notifyFriendsUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("uu-friends-updated"));
+}
+
 export async function fetchFriendBundle(
   userId: string
 ): Promise<{ data: FriendBundle; error?: string }> {
@@ -47,10 +52,31 @@ export async function fetchFriendBundle(
   return { data: { incoming, outgoing, friends, requests } };
 }
 
+async function findRelation(
+  a: string,
+  b: string
+): Promise<{ row: FriendRequest | null; error?: string }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("friend_requests")
+    .select("*")
+    .or(
+      `and(from_user_id.eq.${a},to_user_id.eq.${b}),and(from_user_id.eq.${b},to_user_id.eq.${a})`
+    );
+  if (error) return { row: null, error: error.message };
+  const rows = (data as FriendRequest[]) || [];
+  // Prefer accepted, then pending, then any
+  const accepted = rows.find((r) => r.status === "accepted");
+  if (accepted) return { row: accepted };
+  const pending = rows.find((r) => r.status === "pending");
+  if (pending) return { row: pending };
+  return { row: rows[0] || null };
+}
+
 export async function sendFriendRequest(
   fromUserId: string,
   toUserId: string
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; alreadyIncoming?: boolean }> {
   if (fromUserId === toUserId) return { error: "Cannot friend yourself" };
   const supabase = createClient();
   const { data: people, error: peopleErr } = await supabase
@@ -64,12 +90,48 @@ export async function sendFriendRequest(
   if (!from.college_id || from.college_id !== to.college_id) {
     return { error: "Friends must be in the same college" };
   }
+
+  const { row: existing, error: findErr } = await findRelation(
+    fromUserId,
+    toUserId
+  );
+  if (findErr) return { error: findErr };
+
+  if (existing) {
+    if (existing.status === "accepted") {
+      return { error: "Already friends" };
+    }
+    if (existing.status === "pending") {
+      if (existing.from_user_id === fromUserId) {
+        return { error: "Request already pending" };
+      }
+      return {
+        error: "They already sent you a request — accept it in Friends",
+        alreadyIncoming: true,
+      };
+    }
+    // rejected / other → reopen as pending from current sender
+    const { error } = await supabase
+      .from("friend_requests")
+      .update({
+        from_user_id: fromUserId,
+        to_user_id: toUserId,
+        status: "pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+    if (error) return { error: error.message };
+    notifyFriendsUpdated();
+    return {};
+  }
+
   const { error } = await supabase.from("friend_requests").insert({
     from_user_id: fromUserId,
     to_user_id: toUserId,
     status: "pending",
   });
   if (error) return { error: error.message };
+  notifyFriendsUpdated();
   return {};
 }
 
@@ -108,6 +170,35 @@ export async function respondFriendRequest(
       { onConflict: "user_a_id,user_b_id", ignoreDuplicates: true }
     );
   }
+  notifyFriendsUpdated();
+  return {};
+}
+
+/** Sender cancels an outgoing pending request. */
+export async function cancelFriendRequest(
+  requestId: string,
+  userId: string
+): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { data: req, error: fetchErr } = await supabase
+    .from("friend_requests")
+    .select("*")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (fetchErr) return { error: fetchErr.message };
+  if (!req) return { error: "Request not found" };
+  if (req.from_user_id !== userId) return { error: "Not your request" };
+  if (req.status !== "pending") return { error: "Already handled" };
+
+  const { error } = await supabase
+    .from("friend_requests")
+    .update({
+      status: "rejected",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
+  if (error) return { error: error.message };
+  notifyFriendsUpdated();
   return {};
 }
 
@@ -122,6 +213,20 @@ export async function areFriends(a: string, b: string): Promise<boolean> {
     )
     .maybeSingle();
   return Boolean(data);
+}
+
+export async function getFriendshipStatus(
+  userId: string,
+  otherId: string
+): Promise<"none" | "pending_out" | "pending_in" | "friends"> {
+  if (userId === otherId) return "none";
+  const { row } = await findRelation(userId, otherId);
+  if (!row || row.status === "rejected") return "none";
+  if (row.status === "accepted") return "friends";
+  if (row.status === "pending") {
+    return row.from_user_id === userId ? "pending_out" : "pending_in";
+  }
+  return "none";
 }
 
 export async function countPendingFriendRequests(
@@ -162,5 +267,6 @@ export async function removeFriend(
       rows.map((r) => r.id)
     );
   if (error) return { error: error.message };
+  notifyFriendsUpdated();
   return {};
 }

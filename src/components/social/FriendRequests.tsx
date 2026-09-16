@@ -2,23 +2,28 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MessageCircle, Check, X } from "lucide-react";
+import { MessageCircle, Check, X, UserPlus } from "lucide-react";
 import { Avatar } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
+  demoCancelFriendRequest,
+  demoFriendshipStatus,
   demoRespondFriendRequest,
   demoRemoveFriend,
   demoSendFriendRequest,
 } from "@/lib/demo-store";
 import {
+  cancelFriendRequest,
   fetchFriendBundle,
+  getFriendshipStatus,
+  notifyFriendsUpdated,
   respondFriendRequest,
   removeFriend,
   sendFriendRequest,
   type FriendBundle,
 } from "@/lib/friends";
-import type { FriendRequest, Profile } from "@/lib/types";
+import type { Profile } from "@/lib/types";
 
 function emptyBundle(): FriendBundle {
   return { incoming: [], outgoing: [], friends: [], requests: [] };
@@ -34,7 +39,7 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
   const [msg, setMsg] = useState("");
   const [live, setLive] = useState<FriendBundle>(emptyBundle());
   const [extraProfiles, setExtraProfiles] = useState<Profile[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     if (!user || demoMode) return;
@@ -45,6 +50,14 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  useEffect(() => {
+    function onFriends() {
+      void reload();
+    }
+    window.addEventListener("uu-friends-updated", onFriends);
+    return () => window.removeEventListener("uu-friends-updated", onFriends);
   }, [reload]);
 
   const incoming = useMemo(() => {
@@ -94,32 +107,44 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
       needed.add(r.from_user_id);
       needed.add(r.to_user_id);
     }
+    for (const fid of friendIds) needed.add(fid);
     const missing = [...needed].filter((id) => !profileMap.has(id));
     if (!missing.length) return;
     let cancelled = false;
     void (async () => {
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      const { data } = await supabase.from("profiles").select("*").in("id", missing);
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", missing);
       if (!cancelled && data?.length) {
-        setExtraProfiles((prev) => [...prev, ...(data as Profile[])]);
+        setExtraProfiles((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          const next = [...prev];
+          for (const p of data as Profile[]) {
+            if (!seen.has(p.id)) next.push(p);
+          }
+          return next;
+        });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [incoming, outgoing, demoMode, user, profileMap]);
+  }, [incoming, outgoing, friendIds, demoMode, user, profileMap]);
 
   if (!user) return null;
   const userId = user.id;
 
   async function onRespond(requestId: string, accept: boolean) {
-    if (busy) return;
-    setBusy(true);
+    if (busyId) return;
+    setBusyId(requestId);
     if (demoMode) {
-      demoRespondFriendRequest(requestId, userId, accept);
-      setMsg(accept ? "Accepted" : "Rejected");
-      setBusy(false);
+      const res = demoRespondFriendRequest(requestId, userId, accept);
+      if ("error" in res && res.error) toast.error(res.error);
+      else setMsg(accept ? "Accepted" : "Rejected");
+      setBusyId(null);
       return;
     }
     const res = await respondFriendRequest(requestId, userId, accept);
@@ -128,22 +153,37 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
       setMsg(accept ? "Accepted" : "Rejected");
       await reload();
     }
-    setBusy(false);
+    setBusyId(null);
+  }
+
+  async function onCancel(requestId: string) {
+    if (busyId) return;
+    setBusyId(requestId);
+    if (demoMode) {
+      const res = demoCancelFriendRequest(requestId, userId);
+      if (res.error) toast.error(res.error);
+      else setMsg("Request cancelled");
+      setBusyId(null);
+      return;
+    }
+    const res = await cancelFriendRequest(requestId, userId);
+    if (res.error) toast.error(res.error);
+    else {
+      setMsg("Request cancelled");
+      await reload();
+    }
+    setBusyId(null);
   }
 
   async function onRemoveFriend(friendId: string) {
-    if (busy) return;
+    if (busyId) return;
     if (!window.confirm("Remove this friend?")) return;
-    setBusy(true);
+    setBusyId(friendId);
     if (demoMode) {
       const res = demoRemoveFriend(userId, friendId);
-      if (res.error) {
-        toast.error(res.error);
-        setBusy(false);
-        return;
-      }
-      setMsg("Friend removed");
-      setBusy(false);
+      if (res.error) toast.error(res.error);
+      else setMsg("Friend removed");
+      setBusyId(null);
       return;
     }
     const res = await removeFriend(userId, friendId);
@@ -152,7 +192,7 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
       setMsg("Friend removed");
       await reload();
     }
-    setBusy(false);
+    setBusyId(null);
   }
 
   return (
@@ -187,22 +227,39 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
           ) : (
             incoming.map((r) => {
               const p = profileMap.get(r.from_user_id);
-              if (!p) return null;
               return (
                 <div
                   key={r.id}
                   className="flex items-center gap-3 rounded-lg border border-[var(--line)] p-3"
                 >
-                  <Avatar name={p.display_name} url={p.avatar_url} size={36} />
+                  <Avatar
+                    name={p?.display_name || "?"}
+                    url={p?.avatar_url}
+                    size={36}
+                  />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{p.display_name}</p>
-                    <p className="text-xs text-[var(--muted)]">@{p.username}</p>
+                    {p ? (
+                      <>
+                        <Link
+                          href={`/profile/${p.username}`}
+                          className="truncate text-sm font-semibold hover:underline"
+                          onClick={onClose}
+                        >
+                          {p.display_name}
+                        </Link>
+                        <p className="text-xs text-[var(--muted)]">
+                          @{p.username}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-[var(--muted)]">Loading…</p>
+                    )}
                   </div>
                   <button
                     type="button"
                     className="icon-btn text-[var(--popular)]"
                     aria-label="Accept"
-                    disabled={busy}
+                    disabled={busyId === r.id}
                     onClick={() => void onRespond(r.id, true)}
                   >
                     <Check size={18} />
@@ -211,7 +268,7 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
                     type="button"
                     className="icon-btn text-[var(--danger)]"
                     aria-label="Reject"
-                    disabled={busy}
+                    disabled={busyId === r.id}
                     onClick={() => void onRespond(r.id, false)}
                   >
                     <X size={18} />
@@ -227,17 +284,36 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
           ) : (
             outgoing.map((r) => {
               const p = profileMap.get(r.to_user_id);
-              if (!p) return null;
               return (
                 <div
                   key={r.id}
                   className="flex items-center gap-3 rounded-lg border border-[var(--line)] p-3"
                 >
-                  <Avatar name={p.display_name} url={p.avatar_url} size={36} />
+                  <Avatar
+                    name={p?.display_name || "?"}
+                    url={p?.avatar_url}
+                    size={36}
+                  />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{p.display_name}</p>
-                    <p className="text-xs text-[var(--muted)]">Pending</p>
+                    {p ? (
+                      <>
+                        <p className="truncate text-sm font-semibold">
+                          {p.display_name}
+                        </p>
+                        <p className="text-xs text-[var(--muted)]">Pending</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-[var(--muted)]">Pending…</p>
+                    )}
                   </div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost h-8 border-0 px-2 text-xs text-[var(--danger)]"
+                    disabled={busyId === r.id}
+                    onClick={() => void onCancel(r.id)}
+                  >
+                    Cancel
+                  </button>
                 </div>
               );
             })
@@ -251,7 +327,16 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
           ) : (
             friendIds.map((fid) => {
               const p = profileMap.get(fid);
-              if (!p) return null;
+              if (!p) {
+                return (
+                  <div
+                    key={fid}
+                    className="rounded-lg border border-[var(--line)] p-3 text-sm text-[var(--muted)]"
+                  >
+                    Loading friend…
+                  </div>
+                );
+              }
               return (
                 <div
                   key={fid}
@@ -278,8 +363,8 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
                   </Link>
                   <button
                     type="button"
-                    className="btn btn-ghost border-0 px-2 text-xs text-[var(--danger)]"
-                    disabled={busy}
+                    className="btn btn-ghost h-8 border-0 px-2 text-xs text-[var(--danger)]"
+                    disabled={busyId === fid}
                     onClick={() => void onRemoveFriend(fid)}
                   >
                     Remove
@@ -289,11 +374,11 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
             })
           ))}
       </div>
-      {msg && (
+      {msg ? (
         <p className="border-t border-[var(--line)] px-4 py-2 text-xs text-[var(--popular)]">
           {msg}
         </p>
-      )}
+      ) : null}
       <p className="border-t border-[var(--line)] px-4 py-2 text-[11px] text-[var(--muted)]">
         1:1 DMs only. Group chats are out of scope.
       </p>
@@ -301,7 +386,13 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
   );
 }
 
-export function SendFriendButton({ targetUserId }: { targetUserId: string }) {
+export function SendFriendButton({
+  targetUserId,
+  compact = false,
+}: {
+  targetUserId: string;
+  compact?: boolean;
+}) {
   const { user, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const toast = useToast();
@@ -309,59 +400,71 @@ export function SendFriendButton({ targetUserId }: { targetUserId: string }) {
   const [status, setStatus] = useState<
     "none" | "pending_out" | "pending_in" | "friends" | "loading"
   >("loading");
+  const [incomingId, setIncomingId] = useState<string | null>(null);
   const [peerUsername, setPeerUsername] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     if (!user || user.id === targetUserId) return;
-    let cancelled = false;
 
-    async function load() {
-      if (demoMode) {
-        const existing = catalog.friendRequests.find(
-          (r) =>
-            (r.from_user_id === user!.id && r.to_user_id === targetUserId) ||
-            (r.from_user_id === targetUserId && r.to_user_id === user!.id)
-        );
-        const other = catalog.profiles.find((p) => p.id === targetUserId);
-        if (!cancelled) {
-          setPeerUsername(other?.username || null);
-          if (!existing) setStatus("none");
-          else if (existing.status === "accepted") setStatus("friends");
-          else if (existing.from_user_id === user!.id) setStatus("pending_out");
-          else setStatus("pending_in");
-        }
-        return;
-      }
-
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const [{ data: peer }, { data: reqs }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("username")
-          .eq("id", targetUserId)
-          .maybeSingle(),
-        supabase
-          .from("friend_requests")
-          .select("*")
-          .or(
-            `and(from_user_id.eq.${user!.id},to_user_id.eq.${targetUserId}),and(from_user_id.eq.${targetUserId},to_user_id.eq.${user!.id})`
-          ),
-      ]);
-      if (cancelled) return;
-      setPeerUsername((peer as { username?: string } | null)?.username || null);
-      const existing = ((reqs as FriendRequest[]) || [])[0];
-      if (!existing) setStatus("none");
-      else if (existing.status === "accepted") setStatus("friends");
-      else if (existing.from_user_id === user!.id) setStatus("pending_out");
-      else setStatus("pending_in");
+    if (demoMode) {
+      const existing = catalog.friendRequests.find(
+        (r) =>
+          (r.from_user_id === user.id && r.to_user_id === targetUserId) ||
+          (r.from_user_id === targetUserId && r.to_user_id === user.id)
+      );
+      const other = catalog.profiles.find((p) => p.id === targetUserId);
+      setPeerUsername(other?.username || null);
+      const st = demoFriendshipStatus(user.id, targetUserId);
+      setStatus(st);
+      setIncomingId(
+        existing &&
+          existing.status === "pending" &&
+          existing.to_user_id === user.id
+          ? existing.id
+          : null
+      );
+      return;
     }
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const [{ data: peer }, st] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", targetUserId)
+        .maybeSingle(),
+      getFriendshipStatus(user.id, targetUserId),
+    ]);
+    setPeerUsername((peer as { username?: string } | null)?.username || null);
+    setStatus(st);
+
+    if (st === "pending_in") {
+      const { data: reqs } = await supabase
+        .from("friend_requests")
+        .select("id")
+        .eq("from_user_id", targetUserId)
+        .eq("to_user_id", user.id)
+        .eq("status", "pending")
+        .maybeSingle();
+      setIncomingId((reqs as { id?: string } | null)?.id || null);
+    } else {
+      setIncomingId(null);
+    }
   }, [user, targetUserId, demoMode, catalog.friendRequests, catalog.profiles]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    function onFriends() {
+      void refresh();
+    }
+    window.addEventListener("uu-friends-updated", onFriends);
+    return () => window.removeEventListener("uu-friends-updated", onFriends);
+  }, [refresh]);
 
   if (!user || user.id === targetUserId) return null;
 
@@ -375,15 +478,85 @@ export function SendFriendButton({ targetUserId }: { targetUserId: string }) {
 
   if (status === "friends") {
     return (
-      <Link href={`/messages/${peerUsername || ""}`} className="btn btn-primary">
+      <Link
+        href={`/messages/${peerUsername || ""}`}
+        className={compact ? "btn btn-ghost h-8 text-xs" : "btn btn-primary"}
+      >
         Message
       </Link>
     );
   }
-  if (status === "pending_out" || status === "pending_in") {
+
+  if (status === "pending_in") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className={compact ? "btn btn-primary h-8 text-xs" : "btn btn-primary"}
+          disabled={busy || !incomingId}
+          onClick={() => {
+            if (!incomingId) return;
+            void (async () => {
+              setBusy(true);
+              if (demoMode) {
+                const res = demoRespondFriendRequest(incomingId, user.id, true);
+                if ("error" in res && res.error) toast.error(res.error);
+                else {
+                  setStatus("friends");
+                  toast.success("Friend request accepted");
+                }
+              } else {
+                const res = await respondFriendRequest(
+                  incomingId,
+                  user.id,
+                  true
+                );
+                if (res.error) toast.error(res.error);
+                else {
+                  setStatus("friends");
+                  toast.success("Friend request accepted");
+                }
+              }
+              setBusy(false);
+            })();
+          }}
+        >
+          Accept
+        </button>
+        <button
+          type="button"
+          className={compact ? "btn btn-ghost h-8 text-xs" : "btn btn-ghost"}
+          disabled={busy || !incomingId}
+          onClick={() => {
+            if (!incomingId) return;
+            void (async () => {
+              setBusy(true);
+              if (demoMode) {
+                demoRespondFriendRequest(incomingId, user.id, false);
+                setStatus("none");
+              } else {
+                const res = await respondFriendRequest(
+                  incomingId,
+                  user.id,
+                  false
+                );
+                if (res.error) toast.error(res.error);
+                else setStatus("none");
+              }
+              setBusy(false);
+            })();
+          }}
+        >
+          Reject
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "pending_out") {
     return (
       <button type="button" className="btn btn-ghost" disabled>
-        {status === "pending_out" ? "Request sent" : "Respond in Requests"}
+        Request sent
       </button>
     );
   }
@@ -392,33 +565,54 @@ export function SendFriendButton({ targetUserId }: { targetUserId: string }) {
     <div>
       <button
         type="button"
-        className="btn btn-primary"
+        className={
+          compact
+            ? "inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white backdrop-blur hover:bg-white/25 disabled:opacity-50"
+            : "btn btn-primary"
+        }
+        disabled={busy}
         onClick={() => {
           void (async () => {
+            setBusy(true);
+            setError("");
             if (demoMode) {
               const res = demoSendFriendRequest(user.id, targetUserId);
-              if (res.error) setError(res.error);
-              else {
-                setError("");
+              if (res.error) {
+                setError(res.error);
+                toast.error(res.error);
+                if (res.alreadyIncoming) await refresh();
+              } else {
                 setStatus("pending_out");
+                toast.success("Friend request sent");
+                notifyFriendsUpdated();
               }
-              return;
-            }
-            const res = await sendFriendRequest(user.id, targetUserId);
-            if (res.error) {
-              setError(res.error);
-              toast.error(res.error);
             } else {
-              setError("");
-              setStatus("pending_out");
-              toast.success("Friend request sent");
+              const res = await sendFriendRequest(user.id, targetUserId);
+              if (res.error) {
+                setError(res.error);
+                toast.error(res.error);
+                if (res.alreadyIncoming) await refresh();
+              } else {
+                setStatus("pending_out");
+                toast.success("Friend request sent");
+              }
             }
+            setBusy(false);
           })();
         }}
       >
-        Add friend
+        {compact ? (
+          <>
+            <UserPlus size={14} />
+            Add friend
+          </>
+        ) : (
+          "Add friend"
+        )}
       </button>
-      {error && <p className="mt-1 text-xs text-[var(--danger)]">{error}</p>}
+      {error && !compact ? (
+        <p className="mt-1 text-xs text-[var(--danger)]">{error}</p>
+      ) : null}
     </div>
   );
 }

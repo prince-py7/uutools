@@ -112,20 +112,26 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       setPendingCount(0);
       return;
     }
-    if (demoMode) {
-      setPendingCount(
-        catalog.friendRequests.filter(
-          (r) => r.to_user_id === user.id && r.status === "pending"
-        ).length
-      );
-      return;
+
+    function refreshPending() {
+      if (!user) return;
+      if (demoMode) {
+        setPendingCount(
+          catalog.friendRequests.filter(
+            (r) => r.to_user_id === user.id && r.status === "pending"
+          ).length
+        );
+        return;
+      }
+      void countPendingFriendRequests(user.id).then((n) => {
+        setPendingCount(n);
+      });
     }
-    let cancelled = false;
-    void countPendingFriendRequests(user.id).then((n) => {
-      if (!cancelled) setPendingCount(n);
-    });
+
+    refreshPending();
+    window.addEventListener("uu-friends-updated", refreshPending);
     return () => {
-      cancelled = true;
+      window.removeEventListener("uu-friends-updated", refreshPending);
     };
   }, [user, demoMode, catalog.friendRequests]);
 
