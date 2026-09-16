@@ -1,19 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, UserPlus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Avatar } from "@/components/ui/Badge";
 import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
+import { SendFriendButton } from "@/components/social/FriendRequests";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoActiveStories,
   demoCreateStory,
   demoFileToDataUrl,
   demoMarkStoryViewed,
-  demoSendFriendRequest,
 } from "@/lib/demo-store";
-import { sendFriendRequest } from "@/lib/friends";
 import {
   createStory,
   fetchActiveStories,
@@ -40,7 +39,6 @@ export function StoriesRail() {
   const [caption, setCaption] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [friendBusy, setFriendBusy] = useState(false);
   const [liveStories, setLiveStories] = useState<StoryWithAuthor[]>([]);
   const [liveClasses, setLiveClasses] = useState<ClassRow[]>([]);
   const [tick, setTick] = useState(0);
@@ -235,25 +233,6 @@ export function StoriesRail() {
     setBusy(false);
   }
 
-  async function addFriendFromStory() {
-    if (!user || !currentAuthor || currentAuthor.id === user.id || friendBusy) {
-      return;
-    }
-    setFriendBusy(true);
-    try {
-      if (demoMode) {
-        const res = demoSendFriendRequest(user.id, currentAuthor.id);
-        if (res.error) toast.error(res.error);
-        else toast.success("Friend request sent");
-      } else {
-        const res = await sendFriendRequest(user.id, currentAuthor.id);
-        if (res.error) toast.error(res.error);
-        else toast.success("Friend request sent");
-      }
-    } finally {
-      setFriendBusy(false);
-    }
-  }
 
   if (!user) return null;
 
@@ -401,15 +380,10 @@ export function StoriesRail() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {currentAuthor && currentAuthor.id !== user.id ? (
-                  <button
-                    type="button"
-                    disabled={friendBusy}
-                    onClick={() => void addFriendFromStory()}
-                    className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white backdrop-blur hover:bg-white/25 disabled:opacity-50"
-                  >
-                    <UserPlus size={14} />
-                    Add friend
-                  </button>
+                  <SendFriendButton
+                    targetUserId={currentAuthor.id}
+                    compact
+                  />
                 ) : null}
                 <button
                   type="button"

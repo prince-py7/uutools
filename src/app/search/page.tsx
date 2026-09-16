@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { Avatar } from "@/components/ui/Badge";
+import { SendFriendButton } from "@/components/social/FriendRequests";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { classSectionLabel } from "@/lib/badges";
@@ -178,20 +179,29 @@ export default function SearchPage() {
               sections.find((s) => s.id === p.section_id) ||
               catalog.sections.find((s) => s.id === p.section_id);
             return (
-              <Link
+              <div
                 key={p.id}
-                href={`/profile/${p.username}`}
-                className="card flex items-center gap-3 p-3 hover:border-[var(--accent)]"
+                className="card flex items-center gap-3 p-3"
               >
-                <Avatar name={p.display_name} url={p.avatar_url} />
-                <div>
-                  <p className="font-semibold">{p.display_name}</p>
-                  <p className="text-sm text-[var(--muted)]">
-                    @{p.username}
-                    {cls ? ` · ${classSectionLabel(cls, sec)}` : ""}
-                  </p>
-                </div>
-              </Link>
+                <Link
+                  href={`/profile/${p.username}`}
+                  className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
+                >
+                  <Avatar name={p.display_name} url={p.avatar_url} />
+                  <div className="min-w-0">
+                    <p className="font-semibold">{p.display_name}</p>
+                    <p className="text-sm text-[var(--muted)]">
+                      @{p.username}
+                      {cls ? ` · ${classSectionLabel(cls, sec)}` : ""}
+                    </p>
+                  </div>
+                </Link>
+                {user && p.id !== user.id ? (
+                  <div className="shrink-0">
+                    <SendFriendButton targetUserId={p.id} />
+                  </div>
+                ) : null}
+              </div>
             );
           })}
           {!loading && shown.length === 0 && (

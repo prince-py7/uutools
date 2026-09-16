@@ -330,15 +330,7 @@ export default function ProfilePage() {
                     </Link>
                   </>
                 ) : (
-                  <>
-                    <SendFriendButton targetUserId={profile.id} />
-                    <Link
-                      href={`/messages/${profile.username}`}
-                      className="btn btn-ghost inline-flex"
-                    >
-                      Message
-                    </Link>
-                  </>
+                  <SendFriendButton targetUserId={profile.id} />
                 )}
               </div>
             </div>

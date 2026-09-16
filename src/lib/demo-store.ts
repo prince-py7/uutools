@@ -399,6 +399,14 @@ function seed(): DemoState {
         created_at: new Date(now - 1000 * 60 * 60 * 24).toISOString(),
         updated_at: new Date(now - 1000 * 60 * 60 * 20).toISOString(),
       },
+      {
+        id: "fr-pending-1",
+        from_user_id: profId,
+        to_user_id: stu1,
+        status: "pending",
+        created_at: new Date(now - 1000 * 60 * 30).toISOString(),
+        updated_at: new Date(now - 1000 * 60 * 30).toISOString(),
+      },
     ],
     conversations: [
       {
@@ -931,6 +939,11 @@ export function demoMarkStoryViewed(storyId: string, viewerId: string) {
   }
 }
 
+function emitFriendsUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("uu-friends-updated"));
+}
+
 export function demoSendFriendRequest(fromId: string, toId: string) {
   const state = read();
   if (fromId === toId) return { error: "Cannot friend yourself" };
@@ -947,7 +960,23 @@ export function demoSendFriendRequest(fromId: string, toId: string) {
   );
   if (existing) {
     if (existing.status === "accepted") return { error: "Already friends" };
-    if (existing.status === "pending") return { error: "Request already pending" };
+    if (existing.status === "pending") {
+      if (existing.from_user_id === fromId) {
+        return { error: "Request already pending" };
+      }
+      return {
+        error: "They already sent you a request — accept it in Friends",
+        alreadyIncoming: true,
+      };
+    }
+    // rejected → reopen
+    existing.from_user_id = fromId;
+    existing.to_user_id = toId;
+    existing.status = "pending";
+    existing.updated_at = new Date().toISOString();
+    write(state);
+    emitFriendsUpdated();
+    return { request: existing };
   }
   const req: FriendRequest = {
     id: id(),
@@ -959,6 +988,7 @@ export function demoSendFriendRequest(fromId: string, toId: string) {
   };
   state.friendRequests.push(req);
   write(state);
+  emitFriendsUpdated();
   return { request: req };
 }
 
@@ -994,6 +1024,20 @@ export function demoRespondFriendRequest(
     }
   }
   write(state);
+  emitFriendsUpdated();
+  return { request: req };
+}
+
+export function demoCancelFriendRequest(requestId: string, userId: string) {
+  const state = read();
+  const req = state.friendRequests.find((r) => r.id === requestId);
+  if (!req) return { error: "Request not found" };
+  if (req.from_user_id !== userId) return { error: "Not your request" };
+  if (req.status !== "pending") return { error: "Already handled" };
+  req.status = "rejected";
+  req.updated_at = new Date().toISOString();
+  write(state);
+  emitFriendsUpdated();
   return { request: req };
 }
 
@@ -1009,7 +1053,25 @@ export function demoRemoveFriend(userId: string, friendId: string) {
   req.status = "rejected";
   req.updated_at = new Date().toISOString();
   write(state);
+  emitFriendsUpdated();
   return {};
+}
+
+export function demoFriendshipStatus(
+  userId: string,
+  otherId: string
+): "none" | "pending_out" | "pending_in" | "friends" {
+  if (userId === otherId) return "none";
+  const state = read();
+  const existing = state.friendRequests.find(
+    (r) =>
+      (r.from_user_id === userId && r.to_user_id === otherId) ||
+      (r.from_user_id === otherId && r.to_user_id === userId)
+  );
+  if (!existing || existing.status === "rejected") return "none";
+  if (existing.status === "accepted") return "friends";
+  if (existing.from_user_id === userId) return "pending_out";
+  return "pending_in";
 }
 
 export function demoAreFriends(a: string, b: string) {
