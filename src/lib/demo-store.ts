@@ -13,6 +13,7 @@ import type {
   Post,
   Profile,
   Section,
+  Semester,
   Story,
   Subject,
   TimetableSlot,
@@ -24,12 +25,13 @@ import { validateTimetableSlot } from "./timetable";
 import { canSendVerification } from "./verification";
 import type { UploadKind } from "./uploads";
 
-const KEY = "uu-community-demo-v4";
+const KEY = "uu-community-demo-v5";
 
 export type DemoState = {
   sessionUserId: string | null;
   colleges: College[];
   classes: ClassRow[];
+  semesters: Semester[];
   sections: Section[];
   subjects: Subject[];
   profiles: Profile[];
@@ -63,6 +65,9 @@ function seed(): DemoState {
   const secA = "sec-bca-a";
   const secB = "sec-bca-b";
   const secCse = "sec-btech-cse";
+  const semBca1 = "sem-bca-1";
+  const semBca2 = "sem-bca-2";
+  const semBtech1 = "sem-btech-1";
   const subDbms = "sub-dbms";
   const subOs = "sub-os";
   const subMath = "sub-math";
@@ -105,10 +110,15 @@ function seed(): DemoState {
       { id: secB, class_id: bcaId, name: "B" },
       { id: secCse, class_id: btechId, name: "CSE" },
     ],
+    semesters: [
+      { id: semBca1, class_id: bcaId, name: "Semester 1", sort_order: 1 },
+      { id: semBca2, class_id: bcaId, name: "Semester 2", sort_order: 2 },
+      { id: semBtech1, class_id: btechId, name: "Semester 1", sort_order: 1 },
+    ],
     subjects: [
-      { id: subDbms, class_id: bcaId, name: "DBMS" },
-      { id: subOs, class_id: bcaId, name: "Operating Systems" },
-      { id: subMath, class_id: bcaId, name: "Mathematics" },
+      { id: subDbms, class_id: bcaId, semester_id: semBca2, name: "DBMS" },
+      { id: subOs, class_id: bcaId, semester_id: semBca2, name: "Operating Systems" },
+      { id: subMath, class_id: bcaId, semester_id: semBca1, name: "Mathematics" },
     ],
     profiles: [
       {
@@ -227,6 +237,9 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: semBca2,
+        study_unit: "Unit 1",
+        academic_year: "2024-25",
         kind: "study",
         study_type: "unit",
         subject_id: subDbms,
@@ -245,6 +258,9 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: semBca2,
+        study_unit: "Unit 1",
+        academic_year: "2024-25",
         kind: "study",
         study_type: "assignment",
         subject_id: subDbms,
@@ -263,6 +279,9 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: null,
+        study_unit: null,
+        academic_year: null,
         kind: "social",
         study_type: null,
         subject_id: null,
@@ -281,6 +300,9 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: semBca2,
+        study_unit: "Unit 1",
+        academic_year: "2024-25",
         kind: "study",
         study_type: "unit",
         subject_id: subOs,
@@ -299,6 +321,9 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secA,
+        semester_id: semBca2,
+        study_unit: "Unit 1",
+        academic_year: "2024-25",
         kind: "study",
         study_type: "practical",
         subject_id: subMath,
@@ -317,6 +342,9 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: null,
+        study_unit: null,
+        academic_year: null,
         kind: "social",
         study_type: null,
         subject_id: null,
@@ -477,6 +505,9 @@ function migrate(raw: DemoState): DemoState {
     posts: (raw.posts || []).map((p) => ({
       ...p,
       share_count: p.share_count ?? 0,
+      semester_id: p.semester_id ?? null,
+      study_unit: p.study_unit ?? null,
+      academic_year: p.academic_year ?? null,
     })),
     shares: raw.shares || [],
     stories: raw.stories || base.stories,
@@ -492,6 +523,11 @@ function migrate(raw: DemoState): DemoState {
     freeTierNotice: raw.freeTierNotice || base.freeTierNotice,
     roleDefinitions: raw.roleDefinitions || [],
     teacherDelegations: raw.teacherDelegations || [],
+    semesters: raw.semesters || base.semesters || [],
+    subjects: (raw.subjects || base.subjects || []).map((s) => ({
+      ...s,
+      semester_id: s.semester_id ?? null,
+    })),
   };
 }
 
@@ -939,6 +975,32 @@ export function demoMarkStoryViewed(storyId: string, viewerId: string) {
   }
 }
 
+
+function pushDemoNotification(n: {
+  user_id: string;
+  type: "friend_request" | "friend_accepted";
+  title: string;
+  body: string;
+  ref_id?: string | null;
+}) {
+  const state = read() as DemoState & { notifications?: import("./types").AppNotification[] };
+  const item = {
+    id: id(),
+    user_id: n.user_id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    ref_id: n.ref_id || null,
+    read_at: null,
+    created_at: new Date().toISOString(),
+  };
+  const notes = [item, ...(state.notifications || [])];
+  write({ ...state, notifications: notes } as DemoState);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("uu-notifications-updated"));
+  }
+}
+
 function emitFriendsUpdated() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event("uu-friends-updated"));
@@ -976,6 +1038,13 @@ export function demoSendFriendRequest(fromId: string, toId: string) {
     existing.updated_at = new Date().toISOString();
     write(state);
     emitFriendsUpdated();
+    pushDemoNotification({
+      user_id: toId,
+      type: "friend_request",
+      title: "Friend request",
+      body: `${from.display_name} sent you a friend request`,
+      ref_id: existing.id,
+    });
     return { request: existing };
   }
   const req: FriendRequest = {
@@ -989,6 +1058,13 @@ export function demoSendFriendRequest(fromId: string, toId: string) {
   state.friendRequests.push(req);
   write(state);
   emitFriendsUpdated();
+  pushDemoNotification({
+    user_id: toId,
+    type: "friend_request",
+    title: "Friend request",
+    body: `${from.display_name} sent you a friend request`,
+    ref_id: req.id,
+  });
   return { request: req };
 }
 
@@ -1025,6 +1101,16 @@ export function demoRespondFriendRequest(
   }
   write(state);
   emitFriendsUpdated();
+  if (accept) {
+    const accepter = state.profiles.find((p) => p.id === userId);
+    pushDemoNotification({
+      user_id: req.from_user_id,
+      type: "friend_accepted",
+      title: "Friend request accepted",
+      body: `${accepter?.display_name || "Someone"} accepted your friend request`,
+      ref_id: req.id,
+    });
+  }
   return { request: req };
 }
 

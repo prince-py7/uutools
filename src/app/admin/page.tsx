@@ -11,6 +11,7 @@ import {
   fetchFreeTierNotice,
   fetchPopularThreshold,
   fetchSections,
+  fetchSemesters,
   fetchSubjects,
   listAllClassRoles,
   listCollegeProfiles,
@@ -25,6 +26,7 @@ import type {
   Profile,
   RoleDefinition,
   Section,
+  Semester,
   Subject,
   TeacherDelegation,
 } from "@/lib/types";
@@ -41,8 +43,11 @@ export default function AdminPage() {
   const [className, setClassName] = useState("");
   const [sectionName, setSectionName] = useState("");
   const [sectionClassId, setSectionClassId] = useState("");
+  const [semesterName, setSemesterName] = useState("");
+  const [semesterClassId, setSemesterClassId] = useState("");
   const [subjectName, setSubjectName] = useState("");
   const [subjectClassId, setSubjectClassId] = useState("");
+  const [subjectSemesterId, setSubjectSemesterId] = useState("");
   const [roleUserId, setRoleUserId] = useState("");
   const [roleClassId, setRoleClassId] = useState("");
   const [roleSectionId, setRoleSectionId] = useState("");
@@ -63,6 +68,7 @@ export default function AdminPage() {
   const [colleges, setColleges] = useState<College[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [roles, setRoles] = useState<ClassRole[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -97,6 +103,10 @@ export default function AdminPage() {
       classRows.map((c) => fetchSections(c.id))
     );
     setSections(sectionLists.flat());
+    const semesterLists = await Promise.all(
+      classRows.map((c) => fetchSemesters(c.id))
+    );
+    setSemesters(semesterLists.flat());
     const subjectLists = await Promise.all(
       classRows.map((c) => fetchSubjects(c.id))
     );
@@ -128,6 +138,7 @@ export default function AdminPage() {
       setColleges(catalog.colleges);
       setClasses(catalog.classes);
       setSections(catalog.sections);
+      setSemesters(catalog.semesters || []);
       setSubjects(catalog.subjects);
       setRoles(catalog.roles);
       setProfiles(catalog.profiles);
@@ -144,7 +155,11 @@ export default function AdminPage() {
   const viewColleges = demoMode ? catalog.colleges : colleges;
   const viewClasses = demoMode ? catalog.classes : classes;
   const viewSections = demoMode ? catalog.sections : sections;
+  const viewSemesters = demoMode ? catalog.semesters || [] : semesters;
   const viewSubjects = demoMode ? catalog.subjects : subjects;
+  const subjectSemesters = viewSemesters.filter(
+    (s) => s.class_id === subjectClassId
+  );
   const viewRoles = demoMode ? catalog.roles : roles;
   const viewProfiles = demoMode ? catalog.profiles : profiles;
   const viewRoleDefinitions = demoMode
@@ -300,6 +315,43 @@ export default function AdminPage() {
     }
   }
 
+  async function addSemester(e: FormEvent) {
+    e.preventDefault();
+    if (!semesterClassId || !semesterName.trim()) return;
+    const name = semesterName.trim();
+    if (demoMode) {
+      const state = getDemoState();
+      state.semesters = state.semesters || [];
+      const order =
+        state.semesters.filter((s) => s.class_id === semesterClassId).length + 1;
+      state.semesters.push({
+        id: newId(),
+        class_id: semesterClassId,
+        name,
+        sort_order: order,
+      });
+      saveDemoState(state);
+      setSemesterName("");
+      flash("Semester added");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const existing = await fetchSemesters(semesterClassId);
+    const { error } = await supabase.from("semesters").insert({
+      class_id: semesterClassId,
+      name,
+      sort_order: existing.length + 1,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else {
+      setSemesterName("");
+      flash("Semester added");
+      await reloadLive();
+    }
+  }
+
   async function addSection(e: FormEvent) {
     e.preventDefault();
     if (!sectionClassId || !sectionName.trim()) return;
@@ -333,15 +385,21 @@ export default function AdminPage() {
   async function addSubject(e: FormEvent) {
     e.preventDefault();
     if (!subjectClassId || !subjectName.trim()) return;
+    if (!subjectSemesterId) {
+      toast.error("Pick a semester for this subject");
+      return;
+    }
     if (demoMode) {
       const state = getDemoState();
       state.subjects.push({
         id: newId(),
         class_id: subjectClassId,
+        semester_id: subjectSemesterId,
         name: subjectName.trim(),
       });
       saveDemoState(state);
       setSubjectName("");
+      setSubjectSemesterId("");
       flash("Subject added");
       return;
     }
@@ -349,6 +407,7 @@ export default function AdminPage() {
     const supabase = createClient();
     const { error } = await supabase.from("subjects").insert({
       class_id: subjectClassId,
+      semester_id: subjectSemesterId,
       name: subjectName.trim(),
     });
     setBusy(false);
@@ -701,6 +760,50 @@ async function assignRole(e: FormEvent) {
           </ul>
         </section>
 
+
+        <section className="card space-y-3 p-5">
+          <h2 className="font-semibold">Add semester</h2>
+          <p className="text-xs text-[var(--muted)]">
+            Attach semesters to a class, then assign subjects under a semester.
+          </p>
+          <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => void addSemester(e)}>
+            <select
+              className="input"
+              value={semesterClassId}
+              onChange={(e) => setSemesterClassId(e.target.value)}
+            >
+              <option value="">Class</option>
+              {viewClasses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              placeholder="e.g. Semester 3"
+              value={semesterName}
+              onChange={(e) => setSemesterName(e.target.value)}
+            />
+            <button className="btn btn-primary" disabled={busy}>
+              Add semester
+            </button>
+          </form>
+          <ul className="text-sm text-[var(--muted)]">
+            {viewSemesters.map((s) => {
+              const cls = viewClasses.find((c) => c.id === s.class_id);
+              return (
+                <li key={s.id}>
+                  • {cls?.name}: {s.name}
+                </li>
+              );
+            })}
+            {!viewSemesters.length ? (
+              <li className="text-xs">No semesters yet.</li>
+            ) : null}
+          </ul>
+        </section>
+
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">Add section</h2>
           <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => void addSection(e)}>
@@ -740,11 +843,19 @@ async function assignRole(e: FormEvent) {
 
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">Add subject</h2>
-          <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => void addSubject(e)}>
+          <p className="text-xs text-[var(--muted)]">
+            Subjects belong under a class semester so Study Material posts can
+            filter by class → semester → subject.
+          </p>
+          <form className="grid gap-2 sm:grid-cols-2" onSubmit={(e) => void addSubject(e)}>
             <select
               className="input"
               value={subjectClassId}
-              onChange={(e) => setSubjectClassId(e.target.value)}
+              onChange={(e) => {
+                setSubjectClassId(e.target.value);
+                setSubjectSemesterId("");
+              }}
+              required
             >
               <option value="">Class</option>
               {viewClasses.map((c) => (
@@ -753,22 +864,38 @@ async function assignRole(e: FormEvent) {
                 </option>
               ))}
             </select>
-            <input
+            <select
               className="input"
+              value={subjectSemesterId}
+              onChange={(e) => setSubjectSemesterId(e.target.value)}
+              disabled={!subjectClassId}
+              required
+            >
+              <option value="">Semester</option>
+              {subjectSemesters.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input sm:col-span-2"
               placeholder="Subject name"
               value={subjectName}
               onChange={(e) => setSubjectName(e.target.value)}
             />
-            <button className="btn btn-primary" disabled={busy}>
+            <button className="btn btn-primary sm:col-span-2" disabled={busy}>
               Add subject
             </button>
           </form>
           <ul className="text-sm text-[var(--muted)]">
             {viewSubjects.map((s) => {
               const cls = viewClasses.find((c) => c.id === s.class_id);
+              const sem = viewSemesters.find((x) => x.id === s.semester_id);
               return (
                 <li key={s.id}>
-                  • {cls?.name}: {s.name}
+                  • {cls?.name}
+                  {sem ? ` / ${sem.name}` : ""}: {s.name}
                 </li>
               );
             })}

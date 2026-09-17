@@ -6,6 +6,7 @@ import type {
   College,
   Profile,
   Section,
+  Semester,
   Subject,
 } from "@/lib/types";
 
@@ -66,6 +67,29 @@ export async function fetchSubjects(classId: string): Promise<Subject[]> {
     .from("subjects")
     .select("*")
     .eq("class_id", classId)
+    .order("name");
+  return (data as Subject[]) || [];
+}
+
+export async function fetchSemesters(classId: string): Promise<Semester[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("semesters")
+    .select("*")
+    .eq("class_id", classId)
+    .order("sort_order")
+    .order("name");
+  return (data as Semester[]) || [];
+}
+
+export async function fetchSubjectsBySemester(
+  semesterId: string
+): Promise<Subject[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("subjects")
+    .select("*")
+    .eq("semester_id", semesterId)
     .order("name");
   return (data as Subject[]) || [];
 }
