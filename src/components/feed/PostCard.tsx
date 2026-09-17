@@ -362,6 +362,12 @@ export function PostCard({
             {post.kind === "study" && post.study_type
               ? ` · ${post.study_type}`
               : ""}
+            {post.kind === "study" && post.study_unit
+              ? ` · ${post.study_unit}`
+              : ""}
+            {post.kind === "study" && post.academic_year
+              ? ` · ${post.academic_year}`
+              : ""}
           </p>
         </div>
         {isOwner ? (

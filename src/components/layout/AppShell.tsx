@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  BookOpen,
   Calculator,
   CalendarDays,
   ChevronLeft,
@@ -46,6 +47,7 @@ const tools = [
   { href: "/tools/attendance", label: "Attendance", icon: Calculator },
   { href: "/tools/timetable", label: "Timetable", icon: CalendarDays },
   { href: "/tools/favourites", label: "Favourites", icon: Star },
+  { href: "/tools/study-materials", label: "Study Materials", icon: BookOpen },
   {
     href: "/tools/announcements",
     label: "Class announcements",
@@ -142,9 +144,16 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       return;
     }
     let cancelled = false;
-    void countUnreadNotifications(user.id).then((n) => {
-      if (!cancelled) setNotifCount(n);
-    });
+
+    function refreshNotifs() {
+      if (!user) return;
+      void countUnreadNotifications(user.id).then((n) => {
+        if (!cancelled) setNotifCount(n);
+      });
+    }
+
+    refreshNotifs();
+    window.addEventListener("uu-notifications-updated", refreshNotifs);
     void (async () => {
       if (user.is_admin) {
         if (!cancelled) setIsStaff(true);
@@ -160,6 +169,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     })();
     return () => {
       cancelled = true;
+      window.removeEventListener("uu-notifications-updated", refreshNotifs);
     };
   }, [user, demoMode, catalog.roles]);
 

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { getDemoState, saveDemoState } from "@/lib/demo-store";
 import { isSupabaseConfigured } from "@/lib/config";
-import { insertDemoNotifications } from "@/lib/notifications";
+import { insertDemoNotifications, notifyNotificationsUpdated } from "@/lib/notifications";
 import type {
   AppNotification,
   ClassAnnouncement,
@@ -156,6 +156,7 @@ export async function createClassAnnouncement(opts: {
         ref_id: saved.id,
       }))
     );
+    notifyNotificationsUpdated();
   }
 
   try {

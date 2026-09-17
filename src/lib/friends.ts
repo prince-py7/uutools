@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { notifyUser } from "@/lib/notifications";
 import type { FriendRequest, Profile } from "@/lib/types";
 
 export type FriendBundle = {
@@ -11,6 +12,16 @@ export type FriendBundle = {
 export function notifyFriendsUpdated() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event("uu-friends-updated"));
+}
+
+async function displayNameOf(userId: string): Promise<string> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", userId)
+    .maybeSingle();
+  return (data as { display_name?: string } | null)?.display_name || "Someone";
 }
 
 export async function fetchFriendBundle(
@@ -122,16 +133,36 @@ export async function sendFriendRequest(
       .eq("id", existing.id);
     if (error) return { error: error.message };
     notifyFriendsUpdated();
+    const name = await displayNameOf(fromUserId);
+    void notifyUser({
+      userId: toUserId,
+      type: "friend_request",
+      title: "Friend request",
+      body: `${name} sent you a friend request`,
+      refId: existing.id,
+    });
     return {};
   }
 
-  const { error } = await supabase.from("friend_requests").insert({
-    from_user_id: fromUserId,
-    to_user_id: toUserId,
-    status: "pending",
-  });
+  const { data: inserted, error } = await supabase
+    .from("friend_requests")
+    .insert({
+      from_user_id: fromUserId,
+      to_user_id: toUserId,
+      status: "pending",
+    })
+    .select("id")
+    .maybeSingle();
   if (error) return { error: error.message };
   notifyFriendsUpdated();
+  const name = await displayNameOf(fromUserId);
+  void notifyUser({
+    userId: toUserId,
+    type: "friend_request",
+    title: "Friend request",
+    body: `${name} sent you a friend request`,
+    refId: inserted?.id || null,
+  });
   return {};
 }
 
@@ -169,6 +200,14 @@ export async function respondFriendRequest(
       { user_a_id: a, user_b_id: b },
       { onConflict: "user_a_id,user_b_id", ignoreDuplicates: true }
     );
+    const name = await displayNameOf(userId);
+    void notifyUser({
+      userId: req.from_user_id,
+      type: "friend_accepted",
+      title: "Friend request accepted",
+      body: `${name} accepted your friend request`,
+      refId: requestId,
+    });
   }
   notifyFriendsUpdated();
   return {};
