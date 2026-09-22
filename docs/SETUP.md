@@ -20,17 +20,22 @@ In Supabase → SQL Editor, run in order:
 6. For class announcements + notifications + Web Push, run `supabase/patch_notifications.sql` **(required — without it Notifications shows “table missing”)** (also included in fresh `schema.sql`)
 7. For custom roles (beyond CR/Professor) + role catalog + teacher permissions UI, run `supabase/patch_roles_permissions.sql`
 8. For class → semester → subjects + study-material post fields (`semester_id`, `study_unit`, `academic_year`, `media_name`) + friend-request notification types, run `supabase/patch_semesters_study.sql`
+9. For sections-per-semester, subject name uniqueness per semester, profile `semester_id`, and timetable templates, run `supabase/patch_semesters_sections_timetable.sql`
+10. For Google OAuth username/avatar hardening, run `supabase/patch_google_auth.sql`
 
 If you previously applied an older schema, re-run the full scripts (policies are dropped/recreated) or apply deltas carefully for Phase-2 tables: `stories`, `story_views`, `friend_requests`, `conversations`, `messages`, `shares`, `teacher_delegations`, and profile column `last_verification_sent_at`.
 
 **Phase-2 surfaces** (friends, DMs, stories, search, favourites, timetable, admin directory CRUD) ship in full `schema.sql`. No extra patches are required for those features if the full schema is already applied — only use `patch_*.sql` when upgrading an older project.
 
-## 3. Auth (email only)
+## 3. Auth (email + optional Google)
 
 Supabase → Authentication → Providers:
 
-- **Enable Email**
-- Leave Google / Apple / etc. **disabled**
+- **Enable Email** (always)
+- **Optional Google**: enable Google provider, add your Google OAuth Client ID/Secret in Supabase (not in Vercel env). Add redirect URL:
+  - `https://<your-project>.supabase.co/auth/v1/callback`
+  - And Site URL / redirect allow list: `http://localhost:3000`, `https://<your-vercel-domain>`, callback path `/auth/callback`
+- After enabling Google, run `supabase/patch_google_auth.sql` so new Google users get unique usernames + avatar.
 - Optional: “Confirm email” — the app does **not** gate access on verification. Users get full access immediately. Account Settings shows a reminder and a throttled “Send verification email” action (`auth.resend`).
 
 Site URL / redirect allow list:

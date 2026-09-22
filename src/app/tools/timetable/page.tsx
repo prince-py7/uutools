@@ -9,9 +9,15 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { demoSaveTimetableSlot } from "@/lib/demo-store";
-import { fetchTimetable, saveTimetableSlot } from "@/lib/timetable-db";
+import {
+  fetchTemplateSlots,
+  fetchTimetable,
+  listTimetableTemplates,
+  saveTimetableSlot,
+  slotsToTemplateGrid,
+} from "@/lib/timetable-db";
 import { DAYS as DAY_NS, SLOTS as SLOT_NS } from "@/lib/timetable";
-import type { TimetableSlot } from "@/lib/types";
+import type { TimetableSlot, TimetableTemplate } from "@/lib/types";
 
 const DAYS = [
   { n: 1, label: "Mon", full: "Monday" },
@@ -51,6 +57,8 @@ export default function TimetablePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [templates, setTemplates] = useState<TimetableTemplate[]>([]);
+  const [templateId, setTemplateId] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,6 +91,44 @@ export default function TimetablePage() {
   }, [user, demoMode, catalog.timetables, toast]);
 
   useEffect(() => {
+    if (!user?.class_id) {
+      setTemplates([]);
+      return;
+    }
+    if (demoMode) {
+      const list = (catalog.timetableTemplates || []).filter((t) => {
+        if (t.class_id !== user.class_id) return false;
+        if (user.semester_id && t.semester_id !== user.semester_id) return false;
+        if (user.section_id && t.section_id !== user.section_id) return false;
+        return true;
+      });
+      setTemplates(list);
+      return;
+    }
+    let cancelled = false;
+    void listTimetableTemplates({
+      classId: user.class_id,
+      semesterId: user.semester_id,
+      sectionId: user.section_id,
+    }).then((res) => {
+      if (cancelled) return;
+      if (res.error) toast.error(res.error);
+      setTemplates(res.templates);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user?.class_id,
+    user?.semester_id,
+    user?.section_id,
+    demoMode,
+    catalog.timetableTemplates,
+    toast,
+    user,
+  ]);
+
+  useEffect(() => {
     function onDoc(e: MouseEvent) {
       if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
     }
@@ -105,11 +151,36 @@ export default function TimetablePage() {
     setDraft(slotsToGrid(slots));
     setEditing(false);
     setError("");
+    setTemplateId("");
     setMenuOpen(false);
   }
 
   function setDraftCell(dayOfWeek: number, slot: number, value: string) {
     setDraft((prev) => ({ ...prev, [`${dayOfWeek}-${slot}`]: value }));
+  }
+
+  async function applyTemplate() {
+    if (!templateId) {
+      toast.error("Pick a template first");
+      return;
+    }
+    if (demoMode) {
+      const rows = (catalog.timetableTemplateSlots || []).filter(
+        (s) => s.template_id === templateId
+      );
+      setDraft(slotsToTemplateGrid(rows));
+      setEditing(true);
+      toast.success("Template loaded — edit then save");
+      return;
+    }
+    const res = await fetchTemplateSlots(templateId);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    setDraft(slotsToTemplateGrid(res.slots));
+    setEditing(true);
+    toast.success("Template loaded — edit then save");
   }
 
   async function saveAll() {
@@ -146,6 +217,7 @@ export default function TimetablePage() {
         setDraft(slotsToGrid(res.slots));
       }
       setEditing(false);
+      setTemplateId("");
       toast.success("Timetable saved");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Save failed";
@@ -214,71 +286,101 @@ export default function TimetablePage() {
         </div>
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-        {loading && (
-          <LoadingInline label="Loading timetable…" />
+        {loading && <LoadingInline label="Loading timetable…" />}
+
+        {templates.length > 0 && (
+          <div className="card flex flex-col gap-2 p-3 sm:flex-row sm:items-end">
+            <label className="block min-w-0 flex-1 space-y-1">
+              <span className="text-xs text-[var(--muted)]">
+                Class template
+              </span>
+              <select
+                className="input"
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+              >
+                <option value="">Select template…</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn btn-ghost shrink-0"
+              disabled={!templateId}
+              onClick={() => void applyTemplate()}
+            >
+              Load into editor
+            </button>
+          </div>
         )}
+
         {editing && (
           <p className="rounded-lg border border-[var(--line)] bg-[#121212] px-3 py-2 text-xs text-[var(--muted)]">
-            Editing — use ⋮ → <b>Save</b> when done. Type <b>Library</b> or <b>Lunch</b> for no class.
+            Editing — load a template if you want, tweak cells, then{" "}
+            <b>Save</b>. Type <b>Library</b> or <b>Lunch</b> for no class.
           </p>
         )}
 
         <div className="overflow-x-auto">
-            <table className="card w-full min-w-[640px] border-collapse text-xs md:text-sm">
-              <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                  <th className="sticky left-0 z-10 bg-black p-2 md:p-3">Day</th>
-                  {SLOTS.map((slot) => (
-                    <th key={slot} className="p-2 md:p-3">
-                      Slot {slot}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {DAYS.map((d) => (
-                  <tr key={d.n} className="border-b border-[var(--line)]">
-                    <td
-                      className="sticky left-0 z-10 bg-black p-2 font-semibold text-[var(--muted)] md:p-3"
-                      title={d.full}
-                    >
-                      <span className="md:hidden">{d.label}</span>
-                      <span className="hidden md:inline">{d.full}</span>
-                    </td>
-                    {SLOTS.map((slot) => {
-                      const val = grid[`${d.n}-${slot}`] || "";
-                      return (
-                        <td key={slot} className="p-1.5 md:p-2">
-                          {editing ? (
-                            <input
-                              className="input h-8 px-1.5 text-[11px] md:h-9 md:text-sm"
-                              value={val}
-                              placeholder="—"
-                              maxLength={80}
-                              onChange={(e) =>
-                                setDraftCell(d.n, slot, e.target.value)
-                              }
-                            />
-                          ) : (
-                            <div
-                              className={`min-h-8 rounded-md px-1.5 py-1.5 ${
-                                val
-                                  ? "bg-[#141414] text-[var(--text)]"
-                                  : "text-[var(--muted)]"
-                              }`}
-                              title={val || "Empty"}
-                            >
-                              {val || "—"}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
+          <table className="card w-full min-w-[640px] border-collapse text-xs md:text-sm">
+            <thead>
+              <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
+                <th className="sticky left-0 z-10 bg-black p-2 md:p-3">Day</th>
+                {SLOTS.map((slot) => (
+                  <th key={slot} className="p-2 md:p-3">
+                    Slot {slot}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </tr>
+            </thead>
+            <tbody>
+              {DAYS.map((d) => (
+                <tr key={d.n} className="border-b border-[var(--line)]">
+                  <td
+                    className="sticky left-0 z-10 bg-black p-2 font-semibold text-[var(--muted)] md:p-3"
+                    title={d.full}
+                  >
+                    <span className="md:hidden">{d.label}</span>
+                    <span className="hidden md:inline">{d.full}</span>
+                  </td>
+                  {SLOTS.map((slot) => {
+                    const val = grid[`${d.n}-${slot}`] || "";
+                    return (
+                      <td key={slot} className="p-1.5 md:p-2">
+                        {editing ? (
+                          <input
+                            className="input h-8 px-1.5 text-[11px] md:h-9 md:text-sm"
+                            value={val}
+                            placeholder="—"
+                            maxLength={80}
+                            onChange={(e) =>
+                              setDraftCell(d.n, slot, e.target.value)
+                            }
+                          />
+                        ) : (
+                          <div
+                            className={`min-h-8 rounded-md px-1.5 py-1.5 ${
+                              val
+                                ? "bg-[#141414] text-[var(--text)]"
+                                : "text-[var(--muted)]"
+                            }`}
+                            title={val || "Empty"}
+                          >
+                            {val || "—"}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {editing && (
           <div className="flex gap-2">

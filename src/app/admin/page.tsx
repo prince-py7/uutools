@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { TimetableTemplateEditor } from "@/components/admin/TimetableTemplateEditor";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { getDemoState, newId, saveDemoState } from "@/lib/demo-store";
@@ -43,6 +44,7 @@ export default function AdminPage() {
   const [className, setClassName] = useState("");
   const [sectionName, setSectionName] = useState("");
   const [sectionClassId, setSectionClassId] = useState("");
+  const [sectionSemesterId, setSectionSemesterId] = useState("");
   const [semesterName, setSemesterName] = useState("");
   const [semesterClassId, setSemesterClassId] = useState("");
   const [subjectName, setSubjectName] = useState("");
@@ -159,6 +161,9 @@ export default function AdminPage() {
   const viewSubjects = demoMode ? catalog.subjects : subjects;
   const subjectSemesters = viewSemesters.filter(
     (s) => s.class_id === subjectClassId
+  );
+  const sectionSemesters = viewSemesters.filter(
+    (s) => s.class_id === sectionClassId
   );
   const viewRoles = demoMode ? catalog.roles : roles;
   const viewProfiles = demoMode ? catalog.profiles : profiles;
@@ -355,11 +360,16 @@ export default function AdminPage() {
   async function addSection(e: FormEvent) {
     e.preventDefault();
     if (!sectionClassId || !sectionName.trim()) return;
+    if (!sectionSemesterId) {
+      toast.error("Pick a semester — sections differ by semester");
+      return;
+    }
     if (demoMode) {
       const state = getDemoState();
       state.sections.push({
         id: newId(),
         class_id: sectionClassId,
+        semester_id: sectionSemesterId,
         name: sectionName.trim().toUpperCase(),
       });
       saveDemoState(state);
@@ -371,6 +381,7 @@ export default function AdminPage() {
     const supabase = createClient();
     const { error } = await supabase.from("sections").insert({
       class_id: sectionClassId,
+      semester_id: sectionSemesterId,
       name: sectionName.trim().toUpperCase(),
     });
     setBusy(false);
@@ -806,11 +817,19 @@ async function assignRole(e: FormEvent) {
 
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">Add section</h2>
-          <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => void addSection(e)}>
+          <p className="text-xs text-[var(--muted)]">
+            Sections belong to a semester (Sem 1 may have A/B, Sem 2 may have
+            A/B/C — pick the semester first).
+          </p>
+          <form className="grid gap-2 sm:grid-cols-2" onSubmit={(e) => void addSection(e)}>
             <select
               className="input"
               value={sectionClassId}
-              onChange={(e) => setSectionClassId(e.target.value)}
+              onChange={(e) => {
+                setSectionClassId(e.target.value);
+                setSectionSemesterId("");
+              }}
+              required
             >
               <option value="">Class</option>
               {viewClasses.map((c) => (
@@ -819,11 +838,26 @@ async function assignRole(e: FormEvent) {
                 </option>
               ))}
             </select>
+            <select
+              className="input"
+              value={sectionSemesterId}
+              onChange={(e) => setSectionSemesterId(e.target.value)}
+              disabled={!sectionClassId}
+              required
+            >
+              <option value="">Semester</option>
+              {sectionSemesters.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
             <input
               className="input"
               placeholder="e.g. C"
               value={sectionName}
               onChange={(e) => setSectionName(e.target.value)}
+              required
             />
             <button className="btn btn-primary" disabled={busy}>
               Add section
@@ -832,12 +866,17 @@ async function assignRole(e: FormEvent) {
           <ul className="text-sm text-[var(--muted)]">
             {viewSections.map((s) => {
               const cls = viewClasses.find((c) => c.id === s.class_id);
+              const sem = viewSemesters.find((x) => x.id === s.semester_id);
               return (
                 <li key={s.id}>
-                  • {cls?.name} {s.name}
+                  • {cls?.name}
+                  {sem ? ` / ${sem.name}` : ""}: {s.name}
                 </li>
               );
             })}
+            {!viewSections.length ? (
+              <li className="text-xs">No sections yet.</li>
+            ) : null}
           </ul>
         </section>
 
@@ -1113,6 +1152,16 @@ async function assignRole(e: FormEvent) {
             ) : null}
           </ul>
         </section>
+
+        <TimetableTemplateEditor
+          colleges={viewColleges}
+          classes={viewClasses}
+          semesters={viewSemesters}
+          sections={viewSections}
+          defaultCollegeId={
+            targetCollegeId || user?.college_id || viewColleges[0]?.id || ""
+          }
+        />
 
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">Users</h2>

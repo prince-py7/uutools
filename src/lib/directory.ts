@@ -51,13 +51,18 @@ export async function fetchCollegeClasses(
   return (data as ClassRow[]) || [];
 }
 
-export async function fetchSections(classId: string): Promise<Section[]> {
+export async function fetchSections(
+  classId: string,
+  semesterId?: string | null
+): Promise<Section[]> {
   const supabase = createClient();
-  const { data } = await supabase
+  let q = supabase
     .from("sections")
     .select("*")
     .eq("class_id", classId)
     .order("name");
+  if (semesterId) q = q.eq("semester_id", semesterId);
+  const { data } = await q;
   return (data as Section[]) || [];
 }
 

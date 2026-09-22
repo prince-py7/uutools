@@ -14,6 +14,8 @@ export type ClassRow = {
 export type Section = {
   id: string;
   class_id: string;
+  /** Section belongs to a specific semester of the class. */
+  semester_id: string | null;
   name: string;
 };
 
@@ -49,6 +51,8 @@ export type Profile = {
   college_id: string | null;
   class_id: string | null;
   section_id: string | null;
+  /** Current semester for class → semester → section directory. */
+  semester_id: string | null;
   /** Student college / enrollment ID (roll number), not the colleges.id UUID. */
   enrollment_id: string | null;
   socials: Socials;
@@ -140,6 +144,26 @@ export type Comment = {
 export type TimetableSlot = {
   id: string;
   user_id: string;
+  day_of_week: number;
+  slot: number;
+  subject_text: string;
+};
+
+export type TimetableTemplate = {
+  id: string;
+  college_id: string;
+  class_id: string;
+  semester_id: string;
+  section_id: string;
+  name: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TimetableTemplateSlot = {
+  id: string;
+  template_id: string;
   day_of_week: number;
   slot: number;
   subject_text: string;

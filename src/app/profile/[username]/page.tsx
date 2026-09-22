@@ -1,9 +1,9 @@
 "use client";
 
-import { LoadingState } from "@/components/ui/Loading";
+import { LoadingInline, LoadingState, SkeletonRows, Spinner } from "@/components/ui/Loading";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -13,6 +13,7 @@ import { SendFriendButton } from "@/components/social/FriendRequests";
 import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/config";
+import { FEED_PAGE_SIZE, fetchProfilePosts, type FeedItem } from "@/lib/feed";
 import type {
   ClassRole,
   RoleDefinition,
@@ -23,14 +24,13 @@ import type {
   Section,
 } from "@/lib/types";
 
-type ProfileBundle = {
+type ProfileHeader = {
   profile: Profile;
   college: College | null;
   classRow: ClassRow | null;
   section: Section | null;
   roles: ClassRole[];
   roleDefinitions: RoleDefinition[];
-  posts: Post[];
   popularThreshold: number;
 };
 
@@ -40,23 +40,40 @@ export default function ProfilePage() {
   const { user, ready, demoMode } = useAuth();
   const catalog = useDemoCatalog();
   const router = useRouter();
-  const [bundle, setBundle] = useState<ProfileBundle | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const [header, setHeader] = useState<ProfileHeader | null>(null);
+  const [headerLoading, setHeaderLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [liveItems, setLiveItems] = useState<FeedItem[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [demoVisible, setDemoVisible] = useState(FEED_PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!ready) return;
     if (!user) router.replace("/login");
   }, [ready, user, router]);
 
+  // ─── Phase 1: profile header only ──────────────────────────────────────────
   useEffect(() => {
     if (!ready || !user || !username) return;
 
     let cancelled = false;
 
-    async function load() {
-      setLoading(true);
+    async function loadHeader() {
+      setHeaderLoading(true);
       setError("");
+      setHeader(null);
+      setPosts([]);
+      setLiveItems([]);
+      setCursor(null);
+      setHasMore(true);
+      setDemoVisible(FEED_PAGE_SIZE);
 
       if (demoMode || !isSupabaseConfigured()) {
         let profile = catalog.profiles.find((p) => {
@@ -70,23 +87,25 @@ export default function ProfilePage() {
           if (user!.username.toLowerCase() === username.toLowerCase()) {
             profile = user!;
           } else {
-            setBundle(null);
+            setHeader(null);
             setError("User not found");
-            setLoading(false);
+            setHeaderLoading(false);
             return;
           }
         }
-        setBundle({
+        setHeader({
           profile,
-          college: catalog.colleges.find((c) => c.id === profile.college_id) || null,
-          classRow: catalog.classes.find((c) => c.id === profile.class_id) || null,
-          section: catalog.sections.find((s) => s.id === profile.section_id) || null,
+          college:
+            catalog.colleges.find((c) => c.id === profile.college_id) || null,
+          classRow:
+            catalog.classes.find((c) => c.id === profile.class_id) || null,
+          section:
+            catalog.sections.find((s) => s.id === profile.section_id) || null,
           roles: catalog.roles.filter((r) => r.user_id === profile.id),
           roleDefinitions: catalog.roleDefinitions || [],
-          posts: catalog.posts.filter((p) => p.author_id === profile.id),
           popularThreshold: catalog.popularThreshold,
         });
-        setLoading(false);
+        setHeaderLoading(false);
         return;
       }
 
@@ -104,7 +123,6 @@ export default function ProfilePage() {
         if (profileQuery.error) throw new Error(profileQuery.error.message);
         let profile = profileQuery.data;
 
-        // Own profile fallback if username row missing/RLS race
         if (
           !profile &&
           user!.username &&
@@ -115,9 +133,9 @@ export default function ProfilePage() {
 
         if (!profile) {
           if (!cancelled) {
-            setBundle(null);
+            setHeader(null);
             setError("User not found");
-            setLoading(false);
+            setHeaderLoading(false);
           }
           return;
         }
@@ -130,23 +148,35 @@ export default function ProfilePage() {
 
         if (!allowed) {
           if (!cancelled) {
-            setBundle(null);
+            setHeader(null);
             setError("User not found");
-            setLoading(false);
+            setHeaderLoading(false);
           }
           return;
         }
 
-        const [collegeRes, classRes, sectionRes, rolesRes, roleDefsRes, postsRes, settingsRes] =
+        const [collegeRes, classRes, sectionRes, rolesRes, roleDefsRes, settingsRes] =
           await Promise.all([
             p.college_id
-              ? supabase.from("colleges").select("*").eq("id", p.college_id).maybeSingle()
+              ? supabase
+                  .from("colleges")
+                  .select("*")
+                  .eq("id", p.college_id)
+                  .maybeSingle()
               : Promise.resolve({ data: null }),
             p.class_id
-              ? supabase.from("classes").select("*").eq("id", p.class_id).maybeSingle()
+              ? supabase
+                  .from("classes")
+                  .select("*")
+                  .eq("id", p.class_id)
+                  .maybeSingle()
               : Promise.resolve({ data: null }),
             p.section_id
-              ? supabase.from("sections").select("*").eq("id", p.section_id).maybeSingle()
+              ? supabase
+                  .from("sections")
+                  .select("*")
+                  .eq("id", p.section_id)
+                  .maybeSingle()
               : Promise.resolve({ data: null }),
             supabase.from("class_roles").select("*").eq("user_id", p.id),
             p.college_id
@@ -156,11 +186,6 @@ export default function ProfilePage() {
                   .eq("college_id", p.college_id)
               : Promise.resolve({ data: [] }),
             supabase
-              .from("posts")
-              .select("*")
-              .eq("author_id", p.id)
-              .order("created_at", { ascending: false }),
-            supabase
               .from("app_settings")
               .select("value")
               .eq("key", "popular_like_threshold")
@@ -169,14 +194,15 @@ export default function ProfilePage() {
 
         if (cancelled) return;
 
-        const thresholdRaw = (settingsRes as { data?: { value?: unknown } | null }).data
-          ?.value;
+        const thresholdRaw = (
+          settingsRes as { data?: { value?: unknown } | null }
+        ).data?.value;
         const popularThreshold =
           typeof thresholdRaw === "number"
             ? thresholdRaw
             : Number(thresholdRaw) || catalog.popularThreshold || 10;
 
-        setBundle({
+        setHeader({
           profile: {
             ...p,
             socials: p.socials || {},
@@ -186,40 +212,138 @@ export default function ProfilePage() {
           section: (sectionRes.data as Section) || null,
           roles: (rolesRes.data as ClassRole[]) || [],
           roleDefinitions: (roleDefsRes.data as RoleDefinition[]) || [],
-          posts: (postsRes.data as Post[]) || [],
           popularThreshold,
         });
       } catch (e) {
         if (!cancelled) {
-          setBundle(null);
+          setHeader(null);
           setError(e instanceof Error ? e.message : "Failed to load profile");
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setHeaderLoading(false);
       }
     }
 
-    void load();
+    void loadHeader();
     return () => {
       cancelled = true;
     };
   }, [ready, user, username, demoMode, catalog]);
 
+  // ─── Phase 2: posts after header ───────────────────────────────────────────
+  const loadPosts = useCallback(
+    async (mode: "reset" | "more") => {
+      if (!header?.profile || !user) return;
+
+      if (demoMode || !isSupabaseConfigured()) {
+        const all = catalog.posts
+          .filter((p) => p.author_id === header.profile.id)
+          .sort(
+            (a, b) =>
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime()
+          );
+        setPosts(all);
+        setHasMore(false);
+        setPostsLoading(false);
+        return;
+      }
+
+      if (mode === "more") {
+        if (loadingMore || !hasMore || !cursor) return;
+        setLoadingMore(true);
+      } else {
+        setPostsLoading(true);
+        setCursor(null);
+        setHasMore(true);
+      }
+
+      const res = await fetchProfilePosts({
+        authorId: header.profile.id,
+        viewerId: user.id,
+        before: mode === "more" ? cursor : null,
+        limit: FEED_PAGE_SIZE,
+      });
+
+      if (mode === "reset") {
+        setLiveItems(res.items);
+        setPosts(res.items.map((i) => i.post));
+      } else {
+        setLiveItems((prev) => {
+          const seen = new Set(prev.map((i) => i.post.id));
+          return [...prev, ...res.items.filter((i) => !seen.has(i.post.id))];
+        });
+        setPosts((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return [
+            ...prev,
+            ...res.items
+              .map((i) => i.post)
+              .filter((p) => !seen.has(p.id)),
+          ];
+        });
+      }
+      setCursor(res.nextCursor);
+      setHasMore(res.hasMore);
+      setPostsLoading(false);
+      setLoadingMore(false);
+    },
+    [
+      header?.profile,
+      user,
+      demoMode,
+      catalog.posts,
+      cursor,
+      hasMore,
+      loadingMore,
+    ]
+  );
+
+  useEffect(() => {
+    if (!header?.profile) return;
+    void loadPosts("reset");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [header?.profile?.id]);
+
+  const demoShown = useMemo(
+    () => posts.slice(0, demoVisible),
+    [posts, demoVisible]
+  );
+  const demoHasMore = demoMode && demoVisible < posts.length;
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || headerLoading) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        if (demoMode) {
+          if (demoHasMore) setDemoVisible((n) => n + FEED_PAGE_SIZE);
+          return;
+        }
+        void loadPosts("more");
+      },
+      { rootMargin: "320px 0px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [demoMode, demoHasMore, loadPosts, headerLoading, posts.length]);
+
   const badges = useMemo(() => {
-    if (!bundle) return [];
+    if (!header) return [];
     return buildBadges({
-      profile: bundle.profile,
-      roles: bundle.roles,
-      classes: bundle.classRow ? [bundle.classRow] : [],
-      sections: bundle.section ? [bundle.section] : [],
-      popularThreshold: bundle.popularThreshold,
-      roleDefinitions: bundle.roleDefinitions,
+      profile: header.profile,
+      roles: header.roles,
+      classes: header.classRow ? [header.classRow] : [],
+      sections: header.section ? [header.section] : [],
+      popularThreshold: header.popularThreshold,
+      roleDefinitions: header.roleDefinitions,
     });
-  }, [bundle]);
+  }, [header]);
 
   if (!user) return null;
 
-  if (loading) {
+  if (headerLoading) {
     return (
       <AppShell>
         <LoadingState label="Loading profile…" />
@@ -227,7 +351,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!bundle?.profile) {
+  if (!header?.profile) {
     return (
       <AppShell>
         <div className="card m-4 space-y-3 p-8 text-center">
@@ -241,8 +365,9 @@ export default function ProfilePage() {
     );
   }
 
-  const { profile, college, classRow, section, posts } = bundle;
+  const { profile, college, classRow, section } = header;
   const isSelf = user.id === profile.id;
+  const displayPosts = demoMode ? demoShown : posts;
 
   return (
     <AppShell>
@@ -273,7 +398,8 @@ export default function ProfilePage() {
               </div>
               <p className="text-[var(--muted)]">@{profile.username}</p>
               <p className="mt-2 text-sm text-[var(--muted)]">
-                {college?.name || (isSelf ? "Finish onboarding to set college" : "—")}
+                {college?.name ||
+                  (isSelf ? "Finish onboarding to set college" : "—")}
                 {classRow
                   ? ` · ${classSectionLabel(classRow, section || undefined)}`
                   : ""}
@@ -299,22 +425,38 @@ export default function ProfilePage() {
               )}
               <div className="mt-3 flex flex-wrap gap-3 text-sm text-[var(--accent)]">
                 {profile.socials?.instagram && (
-                  <a href={profile.socials.instagram} target="_blank" rel="noreferrer">
+                  <a
+                    href={profile.socials.instagram}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Instagram
                   </a>
                 )}
                 {profile.socials?.linkedin && (
-                  <a href={profile.socials.linkedin} target="_blank" rel="noreferrer">
+                  <a
+                    href={profile.socials.linkedin}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     LinkedIn
                   </a>
                 )}
                 {profile.socials?.github && (
-                  <a href={profile.socials.github} target="_blank" rel="noreferrer">
+                  <a
+                    href={profile.socials.github}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     GitHub
                   </a>
                 )}
                 {profile.socials?.website && (
-                  <a href={profile.socials.website} target="_blank" rel="noreferrer">
+                  <a
+                    href={profile.socials.website}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Website
                   </a>
                 )}
@@ -322,7 +464,10 @@ export default function ProfilePage() {
               <div className="mt-4 flex flex-wrap gap-2">
                 {isSelf ? (
                   <>
-                    <Link href="/profile/edit" className="btn btn-ghost inline-flex">
+                    <Link
+                      href="/profile/edit"
+                      className="btn btn-ghost inline-flex"
+                    >
                       Edit profile
                     </Link>
                     <Link href="/messages" className="btn btn-ghost inline-flex">
@@ -338,15 +483,46 @@ export default function ProfilePage() {
         </div>
 
         <h2 className="px-1 text-sm font-semibold text-[var(--muted)]">
-          Posts · {posts.length}
+          Posts
+          {!postsLoading && displayPosts.length
+            ? ` · ${displayPosts.length}${hasMore || demoHasMore ? "+" : ""}`
+            : ""}
         </h2>
         <div className="space-y-4 pb-4">
-          {posts.map((p) => (
-            <PostCard key={p.id} post={p} author={profile} />
-          ))}
-          {posts.length === 0 && (
-            <div className="card p-6 text-center text-[var(--muted)]">No posts yet</div>
+          {postsLoading && displayPosts.length === 0 ? (
+            <SkeletonRows rows={2} />
+          ) : displayPosts.length === 0 ? (
+            <div className="card p-6 text-center text-[var(--muted)]">
+              No posts yet
+            </div>
+          ) : demoMode ? (
+            demoShown.map((p) => (
+              <PostCard key={p.id} post={p} author={profile} />
+            ))
+          ) : (
+            liveItems.map((item) => (
+              <PostCard
+                key={item.post.id}
+                post={item.post}
+                author={profile}
+                initialLiked={item.liked}
+                initialFavoured={item.favoured}
+                initialComments={item.comments}
+                people={item.people}
+                popularThreshold={header.popularThreshold}
+              />
+            ))
           )}
+
+          <div ref={sentinelRef} className="h-6" aria-hidden />
+          {(loadingMore || postsLoading) && displayPosts.length > 0 ? (
+            <div className="flex justify-center py-2">
+              <Spinner size={18} />
+            </div>
+          ) : null}
+          {postsLoading && displayPosts.length === 0 ? (
+            <LoadingInline label="Loading posts…" />
+          ) : null}
         </div>
       </div>
     </AppShell>
