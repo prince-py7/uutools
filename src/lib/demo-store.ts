@@ -25,7 +25,7 @@ import { validateTimetableSlot } from "./timetable";
 import { canSendVerification } from "./verification";
 import type { UploadKind } from "./uploads";
 
-const KEY = "uu-community-demo-v5";
+const KEY = "uu-community-demo-v6";
 
 export type DemoState = {
   sessionUserId: string | null;
@@ -238,13 +238,14 @@ function seed(): DemoState {
         class_id: bcaId,
         section_id: secB,
         semester_id: semBca2,
-        study_unit: "Unit 1",
+        study_unit: "Unit 2",
         academic_year: "2024-25",
         kind: "study",
         study_type: "unit",
         subject_id: subDbms,
         caption: "Unit 2 DBMS notes (official) — ER diagrams + normalization.",
         media_url: null,
+        media_name: "DBMS_Unit2_ER_Normalization.pdf",
         media_type: "pdf",
         like_count: 12,
         comment_count: 2,
@@ -259,14 +260,15 @@ function seed(): DemoState {
         class_id: bcaId,
         section_id: secB,
         semester_id: semBca2,
-        study_unit: "Unit 1",
+        study_unit: "Assignment 3",
         academic_year: "2024-25",
         kind: "study",
         study_type: "assignment",
         subject_id: subDbms,
         caption: "Assignment 3 due Friday. Submit PDF on portal.",
         media_url: null,
-        media_type: "none",
+        media_name: "DBMS_Assignment3_Questions.pdf",
+        media_type: "pdf",
         like_count: 8,
         comment_count: 1,
         share_count: 0,
@@ -287,6 +289,7 @@ function seed(): DemoState {
         subject_id: null,
         caption: "Fest prep vibes in the cafeteria",
         media_url: null,
+        media_name: null,
         media_type: "image",
         like_count: 5,
         comment_count: 0,
@@ -308,6 +311,7 @@ function seed(): DemoState {
         subject_id: subOs,
         caption: "OS Unit 1 summary I made — paging + scheduling. Hope this helps!",
         media_url: null,
+        media_name: "OS_Unit1_Paging_Scheduling.pdf",
         media_type: "pdf",
         like_count: 11,
         comment_count: 1,
@@ -321,14 +325,15 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secA,
-        semester_id: semBca2,
-        study_unit: "Unit 1",
-        academic_year: "2024-25",
+        semester_id: semBca1,
+        study_unit: "Lab 4",
+        academic_year: "2023-24",
         kind: "study",
         study_type: "practical",
         subject_id: subMath,
         caption: "Practical lab sheet — numerical methods.",
         media_url: null,
+        media_name: "Math_Lab4_Numerical_Methods.pdf",
         media_type: "pdf",
         like_count: 3,
         comment_count: 0,
@@ -350,6 +355,7 @@ function seed(): DemoState {
         subject_id: null,
         caption: "Reminder: mid-sem seating out tomorrow morning.",
         media_url: null,
+        media_name: null,
         media_type: "none",
         like_count: 15,
         comment_count: 3,
@@ -508,6 +514,7 @@ function migrate(raw: DemoState): DemoState {
       semester_id: p.semester_id ?? null,
       study_unit: p.study_unit ?? null,
       academic_year: p.academic_year ?? null,
+      media_name: p.media_name ?? null,
     })),
     shares: raw.shares || [],
     stories: raw.stories || base.stories,
@@ -1295,7 +1302,7 @@ export async function demoFileToDataUrl(
   file: File,
   kind: UploadKind
 ): Promise<
-  | { url: string; mediaType: "image" | "pdf" | "video" | "audio" }
+  | { url: string; mediaType: "image" | "pdf" | "video" | "audio"; fileName: string }
   | { error: string }
 > {
   const { prepareUploadFile } = await import("./uploads");
@@ -1307,7 +1314,7 @@ export async function demoFileToDataUrl(
     reader.onerror = () => reject(new Error("Read failed"));
     reader.readAsDataURL(prepared.file);
   });
-  return { url, mediaType: prepared.mediaType };
+  return { url, mediaType: prepared.mediaType, fileName: prepared.file.name };
 }
 
 export { id as newId };

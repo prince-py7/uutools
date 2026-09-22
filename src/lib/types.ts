@@ -119,6 +119,8 @@ export type Post = {
   academic_year: string | null;
   caption: string;
   media_url: string | null;
+  /** Original upload filename, e.g. "DBMS_Unit1.pdf". */
+  media_name: string | null;
   media_type: MediaType | null;
   like_count: number;
   comment_count: number;

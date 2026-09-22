@@ -19,7 +19,7 @@ In Supabase → SQL Editor, run in order:
 5. For College ID / enrollment number on profiles, run `supabase/patch_enrollment_id.sql`
 6. For class announcements + notifications + Web Push, run `supabase/patch_notifications.sql` **(required — without it Notifications shows “table missing”)** (also included in fresh `schema.sql`)
 7. For custom roles (beyond CR/Professor) + role catalog + teacher permissions UI, run `supabase/patch_roles_permissions.sql`
-8. For class → semester → subjects + study-material post fields + friend-request notification types, run `supabase/patch_semesters_study.sql`
+8. For class → semester → subjects + study-material post fields (`semester_id`, `study_unit`, `academic_year`, `media_name`) + friend-request notification types, run `supabase/patch_semesters_study.sql`
 
 If you previously applied an older schema, re-run the full scripts (policies are dropped/recreated) or apply deltas carefully for Phase-2 tables: `stories`, `story_views`, `friend_requests`, `conversations`, `messages`, `shares`, `teacher_delegations`, and profile column `last_verification_sent_at`.
 

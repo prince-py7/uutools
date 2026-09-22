@@ -63,6 +63,7 @@ describe("eligibility & badges", () => {
     academic_year: "2024-25",
     caption: "notes",
     media_url: null,
+    media_name: "notes.pdf",
     media_type: "pdf",
     like_count: 11,
     comment_count: 0,
