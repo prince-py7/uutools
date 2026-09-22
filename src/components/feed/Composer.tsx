@@ -229,10 +229,12 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
 
     let media_url: string | null = null;
     let media_type: MediaType = kind === "study" ? "pdf" : "none";
+    let media_name: string | null = null;
     const uploadKind = kind === "study" ? "study-file" : "post-image";
 
     try {
       if (file) {
+        media_name = file.name;
         if (demoMode) {
           const res = await demoFileToDataUrl(file, uploadKind);
           if ("error" in res) {
@@ -241,6 +243,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             return;
           }
           media_url = res.url;
+          media_name = res.fileName || file.name;
           media_type =
             res.mediaType === "pdf"
               ? "pdf"
@@ -256,6 +259,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             return;
           }
           media_url = res.url;
+          media_name = res.fileName || file.name;
           media_type =
             res.mediaType === "pdf"
               ? "pdf"
@@ -290,6 +294,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           academic_year: kind === "study" ? academicYear.trim() : null,
           caption: caption.trim(),
           media_url,
+          media_name,
           media_type,
           is_official_verified: Boolean(isOfficial),
         });
@@ -314,6 +319,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           academic_year: kind === "study" ? academicYear.trim() : null,
           caption: caption.trim(),
           media_url,
+          media_name,
           media_type,
           is_official_verified: Boolean(isOfficial),
         });

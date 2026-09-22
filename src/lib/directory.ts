@@ -51,13 +51,18 @@ export async function fetchCollegeClasses(
   return (data as ClassRow[]) || [];
 }
 
-export async function fetchSections(classId: string): Promise<Section[]> {
+export async function fetchSections(
+  classId: string,
+  semesterId?: string | null
+): Promise<Section[]> {
   const supabase = createClient();
-  const { data } = await supabase
+  let q = supabase
     .from("sections")
     .select("*")
     .eq("class_id", classId)
     .order("name");
+  if (semesterId) q = q.eq("semester_id", semesterId);
+  const { data } = await q;
   return (data as Section[]) || [];
 }
 
@@ -80,6 +85,42 @@ export async function fetchSemesters(classId: string): Promise<Semester[]> {
     .order("sort_order")
     .order("name");
   return (data as Semester[]) || [];
+}
+
+export async function fetchSubjectById(
+  subjectId: string
+): Promise<Subject | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("subjects")
+    .select("*")
+    .eq("id", subjectId)
+    .maybeSingle();
+  return (data as Subject) || null;
+}
+
+export async function fetchSemesterById(
+  semesterId: string
+): Promise<Semester | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("semesters")
+    .select("*")
+    .eq("id", semesterId)
+    .maybeSingle();
+  return (data as Semester) || null;
+}
+
+export async function fetchClassById(
+  classId: string
+): Promise<ClassRow | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("classes")
+    .select("*")
+    .eq("id", classId)
+    .maybeSingle();
+  return (data as ClassRow) || null;
 }
 
 export async function fetchSubjectsBySemester(

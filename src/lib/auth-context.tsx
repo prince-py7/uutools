@@ -33,6 +33,7 @@ type AuthContextValue = {
   user: Profile | null;
   refresh: () => void;
   login: (identifier: string, password: string) => Promise<{ error?: string }>;
+  loginWithGoogle: () => Promise<{ error?: string }>;
   signup: (opts: {
     username: string;
     email: string;
@@ -172,6 +173,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [demoMode]
   );
+
+  const loginWithGoogle = useCallback(async () => {
+    if (demoMode) {
+      return {
+        error:
+          "Google sign-in needs Supabase. Add NEXT_PUBLIC_SUPABASE_URL and ANON_KEY, then enable Google in Auth → Providers.",
+      };
+    }
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const redirectTo = `${window.location.origin}/auth/callback?next=/home`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: "offline",
+          prompt: "select_account",
+        },
+      },
+    });
+    if (error) return { error: error.message };
+    return {};
+  }, [demoMode]);
 
   const signup = useCallback(
     async (opts: {
@@ -507,6 +532,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       refresh,
       login,
+      loginWithGoogle,
       signup,
       logout,
       updateProfile,
@@ -522,6 +548,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       refresh,
       login,
+      loginWithGoogle,
       signup,
       logout,
       updateProfile,

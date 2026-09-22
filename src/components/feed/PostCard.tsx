@@ -20,6 +20,11 @@ import { useToast } from "@/components/ui/Toast";
 import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
+  fetchClassById,
+  fetchSemesterById,
+  fetchSubjectById,
+} from "@/lib/directory";
+import {
   demoAddComment,
   demoDeletePost,
   demoRecordShare,
@@ -28,6 +33,7 @@ import {
   demoUpdatePost,
 } from "@/lib/demo-store";
 import { createClient } from "@/lib/supabase/client";
+import { studyFileDisplayName, studyTypeLabel } from "@/lib/study-meta";
 import type {
   ClassRole,
   ClassRow,
@@ -35,6 +41,8 @@ import type {
   Post,
   Profile,
   Section,
+  Semester,
+  Subject,
 } from "@/lib/types";
 
 export function PostCard({
@@ -131,6 +139,66 @@ export function PostCard({
     const sec = sections.find((s) => s.id === author.section_id);
     return classSectionLabel(cls, sec);
   }, [author, classes, sections]);
+
+  const [studyClassName, setStudyClassName] = useState("");
+  const [studySemesterName, setStudySemesterName] = useState("");
+  const [studySubjectName, setStudySubjectName] = useState("");
+
+  useEffect(() => {
+    if (post.kind !== "study") {
+      setStudyClassName("");
+      setStudySemesterName("");
+      setStudySubjectName("");
+      return;
+    }
+
+    if (demoMode) {
+      const cls = catalog.classes.find((c) => c.id === post.class_id);
+      const sem = (catalog.semesters || []).find(
+        (s: Semester) => s.id === post.semester_id
+      );
+      const sub = catalog.subjects.find((s: Subject) => s.id === post.subject_id);
+      setStudyClassName(cls?.name || "");
+      setStudySemesterName(sem?.name || "");
+      setStudySubjectName(sub?.name || "");
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const [cls, sem, sub] = await Promise.all([
+        post.class_id
+          ? classes.find((c) => c.id === post.class_id) ||
+            (await fetchClassById(post.class_id))
+          : null,
+        post.semester_id ? fetchSemesterById(post.semester_id) : null,
+        post.subject_id ? fetchSubjectById(post.subject_id) : null,
+      ]);
+      if (cancelled) return;
+      setStudyClassName((cls as ClassRow | null)?.name || "");
+      setStudySemesterName(sem?.name || "");
+      setStudySubjectName(sub?.name || "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    post.kind,
+    post.class_id,
+    post.semester_id,
+    post.subject_id,
+    demoMode,
+    catalog.classes,
+    catalog.semesters,
+    catalog.subjects,
+    classes,
+  ]);
+
+  const fileLabel = studyFileDisplayName(
+    post.media_name,
+    post.media_url,
+    post.media_type
+  );
 
   const badges = useMemo(() => {
     if (!author) return [];
@@ -359,15 +427,6 @@ export function PostCard({
           <p className="text-xs text-[var(--muted)]">
             {authorClassLabel ? `${authorClassLabel} · ` : ""}
             {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-            {post.kind === "study" && post.study_type
-              ? ` · ${post.study_type}`
-              : ""}
-            {post.kind === "study" && post.study_unit
-              ? ` · ${post.study_unit}`
-              : ""}
-            {post.kind === "study" && post.academic_year
-              ? ` · ${post.academic_year}`
-              : ""}
           </p>
         </div>
         {isOwner ? (
@@ -435,6 +494,75 @@ export function PostCard({
         </p>
       ) : null}
 
+      {post.kind === "study" ? (
+        <div className="mx-4 mb-3 space-y-3 rounded-xl border border-[var(--line)] bg-[#141414] p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--accent)]">
+              Study material
+            </p>
+            {post.study_type ? (
+              <span className="rounded-md bg-[#1f1f1f] px-2 py-0.5 text-[11px] text-[var(--text)]">
+                {studyTypeLabel(post.study_type)}
+              </span>
+            ) : null}
+          </div>
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm sm:grid-cols-3">
+            {studySubjectName ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Subject</dt>
+                <dd className="truncate font-medium">{studySubjectName}</dd>
+              </div>
+            ) : null}
+            {studyClassName ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Class</dt>
+                <dd className="truncate font-medium">{studyClassName}</dd>
+              </div>
+            ) : null}
+            {studySemesterName ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Semester</dt>
+                <dd className="truncate font-medium">{studySemesterName}</dd>
+              </div>
+            ) : null}
+            {post.study_unit ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Unit</dt>
+                <dd className="truncate font-medium">{post.study_unit}</dd>
+              </div>
+            ) : null}
+            {post.academic_year ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Year</dt>
+                <dd className="truncate font-medium">{post.academic_year}</dd>
+              </div>
+            ) : null}
+          </dl>
+          {(post.media_type === "pdf" || post.media_url) && (
+            <div className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[#1a1a1a] p-3">
+              <FileText className="shrink-0 text-[var(--accent)]" size={20} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium" title={fileLabel}>
+                  {fileLabel}
+                </p>
+                {post.media_url ? (
+                  <a
+                    href={post.media_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-[var(--accent)] hover:underline"
+                  >
+                    Open file
+                  </a>
+                ) : (
+                  <p className="text-xs text-[var(--muted)]">No file attached</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {post.media_type === "image" && post.media_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -444,7 +572,7 @@ export function PostCard({
         />
       )}
 
-      {post.media_type === "image" && !post.media_url && (
+      {post.media_type === "image" && !post.media_url && post.kind !== "study" && (
         <div className="mx-4 mb-3 flex aspect-square items-center justify-center rounded-xl bg-[#1a1a1a] text-[var(--muted)]">
           Photo
         </div>
@@ -458,11 +586,11 @@ export function PostCard({
         />
       )}
 
-      {post.media_type === "pdf" && (
+      {post.media_type === "pdf" && post.kind !== "study" && (
         <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[#1a1a1a] p-4">
           <FileText className="text-[var(--accent)]" />
           <div className="min-w-0 flex-1">
-            <p className="font-medium">Study file / PDF</p>
+            <p className="truncate font-medium">{fileLabel}</p>
             {post.media_url ? (
               <a
                 href={post.media_url}

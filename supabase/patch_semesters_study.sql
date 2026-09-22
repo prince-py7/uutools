@@ -43,6 +43,9 @@ alter table public.posts
 alter table public.posts
   add column if not exists academic_year text;
 
+alter table public.posts
+  add column if not exists media_name text;
+
 create index if not exists posts_semester_id_idx on public.posts(semester_id);
 create index if not exists posts_academic_year_idx on public.posts(academic_year);
 
