@@ -306,7 +306,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           return;
         }
         const supabase = createClient();
-        const { error: insertError } = await supabase.from("posts").insert({
+        const row = {
           author_id: user.id,
           college_id: user.college_id,
           class_id: kind === "study" ? studyClassId : user.class_id,
@@ -322,7 +322,30 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           media_name,
           media_type,
           is_official_verified: Boolean(isOfficial),
-        });
+        };
+        let { error: insertError } = await supabase.from("posts").insert(row);
+        // DB not migrated yet — retry without newer study columns
+        if (
+          insertError &&
+          /media_name|study_unit|academic_year|semester_id|schema cache/i.test(
+            insertError.message
+          )
+        ) {
+          const {
+            media_name: _n,
+            study_unit: _u,
+            academic_year: _y,
+            semester_id: _s,
+            ...legacy
+          } = row;
+          const retry = await supabase.from("posts").insert(legacy);
+          insertError = retry.error;
+          if (!insertError) {
+            toast.error(
+              "Post shared, but run supabase/patch_media_name.sql (and patch_semesters_study.sql) in Supabase so filenames and study fields save."
+            );
+          }
+        }
         if (insertError) {
           setError(insertError.message);
           toast.error(insertError.message);
