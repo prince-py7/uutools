@@ -327,9 +327,10 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
         // DB not migrated yet — retry without newer study columns
         if (
           insertError &&
-          /media_name|study_unit|academic_year|semester_id|schema cache/i.test(
-            insertError.message
-          )
+          (insertError.code === "PGRST204" ||
+            /media_name|study_unit|academic_year|semester_id|schema cache|Could not find/i.test(
+              insertError.message
+            ))
         ) {
           const {
             media_name: _n,

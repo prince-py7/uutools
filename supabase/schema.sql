@@ -98,8 +98,11 @@ create table if not exists public.posts (
     or study_type is null
   ),
   subject_id uuid references public.subjects(id) on delete set null,
+  study_unit text,
+  academic_year text,
   caption text not null default '',
   media_url text,
+  media_name text,
   media_type text check (
     media_type in ('image', 'pdf', 'video', 'none') or media_type is null
   ),
