@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { TimetableTemplateEditor } from "@/components/admin/TimetableTemplateEditor";
+import { IntInput } from "@/components/ui/IntInput";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { getDemoState, newId, saveDemoState } from "@/lib/demo-store";
@@ -717,12 +718,11 @@ async function assignRole(e: FormEvent) {
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">UNITIANS POPULAR like threshold</h2>
           <form className="flex gap-2" onSubmit={(e) => void saveThreshold(e)}>
-            <input
+            <IntInput
               className="input max-w-[140px]"
-              type="number"
               min={1}
               value={threshold}
-              onChange={(e) => setThreshold(Number(e.target.value))}
+              onChange={setThreshold}
             />
             <button className="btn btn-primary" disabled={busy}>
               Save

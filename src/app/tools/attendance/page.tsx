@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { IntInput } from "@/components/ui/IntInput";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
@@ -171,37 +172,22 @@ export default function AttendancePage() {
                 <span className="text-xs text-[var(--muted)]">
                   Total Lectures
                 </span>
-                <input
+                <IntInput
                   className="input"
-                  type="number"
                   min={0}
-                  inputMode="numeric"
                   value={prefs.lecturesHeld}
-                  onChange={(e) =>
-                    patch({
-                      lecturesHeld: Math.max(0, Number(e.target.value) || 0),
-                    })
-                  }
+                  onChange={(n) => patch({ lecturesHeld: n })}
                 />
               </label>
               <label className="block space-y-1.5">
                 <span className="text-xs text-[var(--muted)]">
                   Lectures Attended
                 </span>
-                <input
+                <IntInput
                   className="input"
-                  type="number"
                   min={0}
-                  inputMode="numeric"
                   value={prefs.lecturesAttended}
-                  onChange={(e) =>
-                    patch({
-                      lecturesAttended: Math.max(
-                        0,
-                        Number(e.target.value) || 0
-                      ),
-                    })
-                  }
+                  onChange={(n) => patch({ lecturesAttended: n })}
                 />
               </label>
             </div>
@@ -227,15 +213,11 @@ export default function AttendancePage() {
                 ))}
                 <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
                   <span>Custom</span>
-                  <input
+                  <IntInput
                     className="input h-9 w-16 px-2 text-center"
-                    type="number"
                     min={0}
-                    inputMode="numeric"
                     value={prefs.leaveDays}
-                    onChange={(e) =>
-                      patch({ leaveDays: Math.max(0, Number(e.target.value) || 0) })
-                    }
+                    onChange={(n) => patch({ leaveDays: n })}
                     aria-label="Custom leave days"
                   />
                   <span>days</span>

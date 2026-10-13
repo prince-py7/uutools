@@ -11,6 +11,7 @@ import {
 import { notifyFeedUpdated } from "@/lib/feed";
 import { createClient } from "@/lib/supabase/client";
 import { uploadToSupabase } from "@/lib/supabase/upload";
+import { insertPostRow } from "@/lib/posts-insert";
 import { prepareUploadFile } from "@/lib/uploads";
 import {
   loadComposerStudyPrefs,
@@ -330,6 +331,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
     let media_url: string | null = null;
     let media_type: MediaType = kind === "study" ? "pdf" : "none";
     let media_name: string | null = null;
+    let omittedMediaName = false;
     const uploadKind = kind === "study" ? "study-file" : "post-image";
 
     try {
@@ -437,42 +439,17 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           media_type,
           is_official_verified: Boolean(isOfficial),
         };
-        let { error: insertError } = await supabase.from("posts").insert(row);
-        if (
-          insertError &&
-          (insertError.code === "PGRST204" ||
-            /media_name|study_unit|academic_year|semester_id|schema cache|Could not find/i.test(
-              insertError.message
-            ))
-        ) {
-          const legacy = {
-            author_id: row.author_id,
-            college_id: row.college_id,
-            class_id: row.class_id,
-            section_id: row.section_id,
-            kind: row.kind,
-            study_type: row.study_type,
-            subject_id: row.subject_id,
-            caption: row.caption,
-            media_url: row.media_url,
-            media_type: row.media_type,
-            is_official_verified: row.is_official_verified,
-          };
-          const retry = await supabase.from("posts").insert(legacy);
-          insertError = retry.error;
-          if (!insertError) {
-            toast.error(
-              "Post shared — run supabase/patch_media_name.sql so filenames save."
-            );
-          }
-        }
-        if (insertError) {
-          setError(insertError.message);
-          toast.error(insertError.message);
+        const inserted = await insertPostRow(supabase, row);
+        if (inserted.error) {
+          setError(inserted.error);
+          toast.error(inserted.error);
           setBusy(false);
           setProgress(0);
           return;
         }
+        omittedMediaName = Boolean(
+          inserted.omitted?.includes("media_name") && media_name
+        );
       }
 
       if (kind === "study") {
@@ -503,7 +480,11 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       setPrepared(null);
       setStudyUnit("");
       // keep class/semester/subject/year for next upload (faster)
-      toast.success("Post shared");
+      toast.success(
+        omittedMediaName
+          ? "Post shared — run supabase/patch_media_name.sql in Supabase for file names"
+          : "Post shared"
+      );
       notifyFeedUpdated();
       onPosted?.();
     } catch (err) {
