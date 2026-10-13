@@ -91,13 +91,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
       return;
     }
+    // Unblock shell ASAP — paint with cached profile while fresh row loads
+    try {
+      const cached = sessionStorage.getItem(`uu-profile-cache:${uid}`);
+      if (cached) {
+        const parsed = JSON.parse(cached) as Profile;
+        if (parsed?.id === uid) {
+          setUser(parsed);
+          setReady(true);
+        }
+      }
+    } catch {
+      /* ignore bad cache */
+    }
     const { data: profile } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", uid)
       .maybeSingle();
-    setUser((profile as Profile) ?? null);
+    const next = (profile as Profile) ?? null;
+    setUser(next);
     setReady(true);
+    try {
+      if (next) {
+        sessionStorage.setItem(`uu-profile-cache:${uid}`, JSON.stringify(next));
+      } else {
+        sessionStorage.removeItem(`uu-profile-cache:${uid}`);
+      }
+    } catch {
+      /* quota / private mode */
+    }
   }, []);
 
   const refresh = useCallback(() => {

@@ -2,13 +2,13 @@
 
 import { LoadingInline, LoadingState, SkeletonRows, Spinner } from "@/components/ui/Loading";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
-import { PostCard } from "@/components/feed/PostCard";
 import { SendFriendButton } from "@/components/social/FriendRequests";
 import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
@@ -23,6 +23,14 @@ import type {
   Profile,
   Section,
 } from "@/lib/types";
+
+const PostCard = dynamic(
+  () =>
+    import("@/components/feed/PostCard").then((m) => ({
+      default: m.PostCard,
+    })),
+  { loading: () => <SkeletonRows rows={1} /> }
+);
 
 type ProfileHeader = {
   profile: Profile;

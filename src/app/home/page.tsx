@@ -2,12 +2,18 @@
 
 import { LoadingState, SkeletonRows, Spinner } from "@/components/ui/Loading";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
-import { StudyFiltersBar } from "@/components/feed/Composer";
-import { PostCard } from "@/components/feed/PostCard";
-import { StoriesRail } from "@/components/social/StoriesRail";
+import { StudyFiltersBar } from "@/components/feed/StudyFiltersBar";
 import { isVerifiedForFilter, sortFeedPosts } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
@@ -22,6 +28,22 @@ import {
 } from "@/lib/feed";
 import { createClient } from "@/lib/supabase/client";
 import type { ClassRole, ClassRow, Post, Section } from "@/lib/types";
+
+const PostCard = dynamic(
+  () =>
+    import("@/components/feed/PostCard").then((m) => ({
+      default: m.PostCard,
+    })),
+  { loading: () => <SkeletonRows rows={1} /> }
+);
+
+const StoriesRail = dynamic(
+  () =>
+    import("@/components/social/StoriesRail").then((m) => ({
+      default: m.StoriesRail,
+    })),
+  { ssr: false, loading: () => <div className="h-20" aria-hidden /> }
+);
 
 function HomePageInner() {
   const { user, ready, demoMode } = useAuth();
@@ -174,8 +196,9 @@ function HomePageInner() {
       if (mode === "reset") {
         const items = applyClientSort(res.items);
         setLiveItems(items);
+        setLoadingFeed(false);
         const authorIds = [...new Set(items.map((i) => i.author.id))];
-        setRoles(await fetchClassRolesForUsers(authorIds));
+        void fetchClassRolesForUsers(authorIds).then(setRoles);
       } else {
         setLiveItems((prev) => {
           const seen = new Set(prev.map((i) => i.post.id));
@@ -308,22 +331,27 @@ function HomePageInner() {
   function renderCards(posts: Post[] | FeedItem[], live: boolean) {
     if (live) {
       return (posts as FeedItem[]).map((item) => (
-        <PostCard
-          key={item.post.id}
-          post={item.post}
-          author={item.author}
-          initialLiked={item.liked}
-          initialFavoured={item.favoured}
-          initialComments={item.comments}
-          people={item.people}
-          roles={roles}
-          classes={classes}
-          sections={sections}
-          popularThreshold={popularThreshold}
-        />
+        <div key={item.post.id} id={`post-${item.post.id}`}>
+          <PostCard
+            post={item.post}
+            author={item.author}
+            initialLiked={item.liked}
+            initialFavoured={item.favoured}
+            initialComments={item.comments}
+            people={item.people}
+            roles={roles}
+            classes={classes}
+            sections={sections}
+            popularThreshold={popularThreshold}
+          />
+        </div>
       ));
     }
-    return (posts as Post[]).map((p) => <PostCard key={p.id} post={p} />);
+    return (posts as Post[]).map((p) => (
+      <div key={p.id} id={`post-${p.id}`}>
+        <PostCard post={p} />
+      </div>
+    ));
   }
 
   const showEmpty =

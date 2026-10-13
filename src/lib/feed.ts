@@ -29,9 +29,11 @@ async function hydrateFeedItems(
   if (!list.length) return [];
   const supabase = createClient();
   const postIds = list.map((p) => p.id);
-  const includeComments = opts?.includeComments !== false;
+  const includeComments = opts?.includeComments === true;
 
-  const [likesRes, favsRes, commentsRes] = await Promise.all([
+  const authorIds = [...new Set(list.map((p) => p.author_id))];
+
+  const [likesRes, favsRes, commentsRes, profilesRes] = await Promise.all([
     supabase
       .from("likes")
       .select("post_id")
@@ -49,22 +51,28 @@ async function hydrateFeedItems(
           .in("post_id", postIds)
           .order("created_at", { ascending: true })
       : Promise.resolve({ data: [] as Comment[] }),
+    supabase.from("profiles").select("*").in("id", authorIds),
   ]);
 
   const comments = (commentsRes.data as Comment[]) || [];
-  const peopleIds = [
-    ...new Set([
-      ...list.map((p) => p.author_id),
-      ...comments.map((c) => c.author_id),
-    ]),
-  ];
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("*")
-    .in("id", peopleIds);
-
   const people: Record<string, Profile> = {};
-  for (const p of (profiles as Profile[]) || []) people[p.id] = p;
+  for (const p of (profilesRes.data as Profile[]) || []) people[p.id] = p;
+
+  // Comment authors (only when comments were loaded)
+  if (comments.length) {
+    const missing = [
+      ...new Set(
+        comments.map((c) => c.author_id).filter((id) => !people[id])
+      ),
+    ];
+    if (missing.length) {
+      const { data: more } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", missing);
+      for (const p of (more as Profile[]) || []) people[p.id] = p;
+    }
+  }
 
   const liked = new Set(
     ((likesRes.data as { post_id: string }[]) || []).map((l) => l.post_id)
@@ -108,7 +116,7 @@ export async function fetchCollegeFeed(opts: {
   limit?: number;
   /** ISO created_at cursor — fetch posts older than this. */
   before?: string | null;
-  /** When false, skip comment hydration (faster first paint). */
+  /** When true, hydrate comments (slower). Default false for first paint. */
   includeComments?: boolean;
 }): Promise<FeedPage> {
   const supabase = createClient();
@@ -137,7 +145,13 @@ export async function fetchCollegeFeed(opts: {
   }
 
   const { data: posts, error } = await query;
-  if (error) return { items: [], nextCursor: null, hasMore: false, error: error.message };
+  if (error)
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      error: error.message,
+    };
 
   const raw = (posts as Post[]) || [];
   const hasMore = raw.length > limit;
@@ -146,9 +160,7 @@ export async function fetchCollegeFeed(opts: {
     includeComments: opts.includeComments,
   });
   const nextCursor =
-    hasMore && page.length
-      ? page[page.length - 1]!.created_at
-      : null;
+    hasMore && page.length ? page[page.length - 1]!.created_at : null;
 
   return { items, nextCursor, hasMore, error: undefined };
 }
@@ -174,7 +186,13 @@ export async function fetchProfilePosts(opts: {
   }
 
   const { data: posts, error } = await query;
-  if (error) return { items: [], nextCursor: null, hasMore: false, error: error.message };
+  if (error)
+    return {
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      error: error.message,
+    };
 
   const raw = (posts as Post[]) || [];
   const hasMore = raw.length > limit;
