@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, memo, useEffect, useMemo, useState } from "react";
 import {
   Heart,
   MessageCircle,
@@ -32,7 +33,16 @@ import type {
   Section,
 } from "@/lib/types";
 
-export function PostCard({
+function isOptimizableImage(url: string) {
+  try {
+    const host = new URL(url).hostname;
+    return host.endsWith("supabase.co") || host === "api.uuonline.in";
+  } catch {
+    return false;
+  }
+}
+
+function PostCardInner({
   post: initialPost,
   author: authorOverride,
   initialLiked,
@@ -66,6 +76,9 @@ export function PostCard({
   const [liked, setLiked] = useState(false);
   const [favoured, setFavoured] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(
+    Boolean(initialComments?.length)
+  );
   const [busy, setBusy] = useState(false);
   const [gone, setGone] = useState(false);
 
@@ -92,11 +105,18 @@ export function PostCard({
         )
       );
       setComments(catalog.comments.filter((c) => c.post_id === post.id));
+      setCommentsLoaded(true);
       return;
     }
     setLiked(Boolean(initialLiked));
     setFavoured(Boolean(initialFavoured));
-    setComments(initialComments || []);
+    if (initialComments?.length) {
+      setComments(initialComments);
+      setCommentsLoaded(true);
+    } else {
+      setComments([]);
+      setCommentsLoaded(false);
+    }
   }, [
     demoMode,
     user,
@@ -108,6 +128,26 @@ export function PostCard({
     initialFavoured,
     initialComments,
   ]);
+
+  useEffect(() => {
+    if (!showComments || demoMode || commentsLoaded) return;
+    let cancelled = false;
+    void (async () => {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("comments")
+        .select("*")
+        .eq("post_id", post.id)
+        .order("created_at", { ascending: true });
+      if (cancelled) return;
+      setComments((data as Comment[]) || []);
+      setCommentsLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showComments, demoMode, commentsLoaded, post.id]);
 
   const author =
     authorOverride ??
@@ -332,12 +372,25 @@ export function PostCard({
       )}
 
       {post.media_type === "image" && post.media_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={post.media_url}
-          alt=""
-          className="mb-3 max-h-[520px] w-full object-cover"
-        />
+        isOptimizableImage(post.media_url) ? (
+          <Image
+            src={post.media_url}
+            alt=""
+            width={1080}
+            height={1080}
+            sizes="(max-width: 640px) 100vw, 630px"
+            className="mb-3 max-h-[520px] w-full object-cover"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={post.media_url}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="mb-3 max-h-[520px] w-full object-cover"
+          />
+        )
       )}
 
       {post.media_type === "image" && !post.media_url && (
@@ -413,6 +466,9 @@ export function PostCard({
 
       {showComments && (
         <div className="space-y-3 border-t border-[var(--line)] px-4 py-3">
+          {!demoMode && !commentsLoaded ? (
+            <p className="text-xs text-[var(--muted)]">Loading comments…</p>
+          ) : null}
           {comments.map((c) => {
             const a =
               c.author_id === author.id
@@ -447,3 +503,5 @@ export function PostCard({
     </article>
   );
 }
+
+export const PostCard = memo(PostCardInner);

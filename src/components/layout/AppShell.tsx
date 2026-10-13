@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -24,9 +25,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { Composer } from "@/components/feed/Composer";
 import { notifyFeedUpdated } from "@/lib/feed";
-import { FriendRequestsPanel } from "@/components/social/FriendRequests";
 import { Avatar } from "@/components/ui/Badge";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { countPendingFriendRequests } from "@/lib/friends";
@@ -36,6 +35,22 @@ import { enablePushNotifications, pushSupported } from "@/lib/push";
 import { demoUnreadMessageCount } from "@/lib/demo-store";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { verificationReminder } from "@/lib/verification";
+
+const Composer = dynamic(
+  () =>
+    import("@/components/feed/Composer").then((m) => ({
+      default: m.Composer,
+    })),
+  { ssr: false }
+);
+
+const FriendRequestsPanel = dynamic(
+  () =>
+    import("@/components/social/FriendRequests").then((m) => ({
+      default: m.FriendRequestsPanel,
+    })),
+  { ssr: false }
+);
 
 const PUSH_PROMPT_KEY = "unitians-push-prompt-dismissed";
 
@@ -150,10 +165,17 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         );
       }
     })();
+    const onNotif = () => {
+      void countUnreadNotifications(user.id).then((n) => {
+        if (!cancelled) setNotifCount(n);
+      });
+    };
+    window.addEventListener("uu-notifications-updated", onNotif);
     return () => {
       cancelled = true;
+      window.removeEventListener("uu-notifications-updated", onNotif);
     };
-  }, [user, demoMode, catalog, pathname]);
+  }, [user, demoMode, catalog]);
 
   useEffect(() => {
     if (!user) {
@@ -179,7 +201,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       unsub();
       window.removeEventListener("unitians:messages-changed", onLocal);
     };
-  }, [user, demoMode, catalog.messages, catalog.conversations, pathname]);
+  }, [user, demoMode, catalog.messages, catalog.conversations]);
 
   useEffect(() => {
     if (!user || typeof window === "undefined") {

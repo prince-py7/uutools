@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { Badge } from "@/lib/types";
 
 export function BadgeList({ badges }: { badges: Badge[] }) {
@@ -15,6 +16,15 @@ export function BadgeList({ badges }: { badges: Badge[] }) {
   );
 }
 
+function isOptimizableAvatar(url: string) {
+  try {
+    const host = new URL(url).hostname;
+    return host.endsWith("supabase.co") || host === "api.uuonline.in";
+  } catch {
+    return false;
+  }
+}
+
 export function Avatar({
   name,
   url,
@@ -27,12 +37,28 @@ export function Avatar({
   const initial = (name || "?").trim().charAt(0).toUpperCase();
   return (
     <div
-      className="shrink-0 overflow-hidden rounded-full border border-[var(--line)] bg-[var(--bg-elevated)] text-center font-semibold text-[var(--accent)]"
+      className="relative shrink-0 overflow-hidden rounded-full border border-[var(--line)] bg-[var(--bg-elevated)] text-center font-semibold text-[var(--accent)]"
       style={{ width: size, height: size, lineHeight: `${size}px`, fontSize: size * 0.4 }}
     >
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={name} className="h-full w-full object-cover" />
+        isOptimizableAvatar(url) ? (
+          <Image
+            src={url}
+            alt={name}
+            width={size}
+            height={size}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url}
+            alt={name}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
+        )
       ) : (
         initial
       )}
