@@ -1,21 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoadingInline } from "@/components/ui/Loading";
-import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/config";
-import { demoFileToDataUrl } from "@/lib/demo-store";
-import { uploadToSupabase } from "@/lib/supabase/upload";
-import {
-  fetchUniversityPhotoFile,
-  fileToDataUrl,
-  isUnitedUniversity,
-} from "@/lib/university-photo";
+import { ensureAvatarFromEnrollment } from "@/lib/ensure-avatar";
 import type { ClassRow, College, Section, Socials } from "@/lib/types";
 
 export default function EditProfilePage() {
@@ -26,7 +19,6 @@ export default function EditProfilePage() {
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
   const [enrollmentId, setEnrollmentId] = useState("");
   const [collegeId, setCollegeId] = useState("");
   const [classId, setClassId] = useState("");
@@ -35,10 +27,6 @@ export default function EditProfilePage() {
   const [saving, setSaving] = useState(false);
   const [statusNote, setStatusNote] = useState("");
   const [formError, setFormError] = useState("");
-  const [avatarError, setAvatarError] = useState("");
-  const [uuPhotoBusy, setUuPhotoBusy] = useState(false);
-  const [uuPhotoNote, setUuPhotoNote] = useState("");
-  const pendingUuFile = useRef<File | null>(null);
   const [loadingDir, setLoadingDir] = useState(true);
   const [colleges, setColleges] = useState<College[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
@@ -52,7 +40,6 @@ export default function EditProfilePage() {
     }
     setDisplayName(user.display_name);
     setBio(user.bio);
-    setAvatarUrl(user.avatar_url || "");
     setEnrollmentId(user.enrollment_id || "");
     setCollegeId(user.college_id || "");
     setClassId(user.class_id || "");
@@ -105,35 +92,6 @@ export default function EditProfilePage() {
     [sections, classId]
   );
 
-  const selectedCollege = useMemo(
-    () => colleges.find((c) => c.id === collegeId) || null,
-    [colleges, collegeId]
-  );
-  const uuCollege = isUnitedUniversity(selectedCollege);
-
-  async function importUniversityPhoto() {
-    if (!user) return;
-    const id = enrollmentId.trim();
-    if (!id) {
-      setAvatarError("Enter College ID / UUID first");
-      return;
-    }
-    setUuPhotoBusy(true);
-    setAvatarError("");
-    setUuPhotoNote("");
-    const res = await fetchUniversityPhotoFile(id);
-    setUuPhotoBusy(false);
-    if ("error" in res) {
-      setAvatarError(res.error);
-      return;
-    }
-    pendingUuFile.current = res.file;
-    const preview = await fileToDataUrl(res.file);
-    setAvatarUrl(preview);
-    setUuPhotoNote("University photo loaded — click Save changes to apply.");
-    toast.success("Photo ready — save profile to apply");
-  }
-
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!user) return;
@@ -145,79 +103,44 @@ export default function EditProfilePage() {
     setFormError("");
     setStatusNote("Saving…");
 
-    let nextAvatar = avatarUrl || null;
-    if (pendingUuFile.current) {
-      if (demoMode) {
-        const data = await demoFileToDataUrl(pendingUuFile.current, "avatar");
-        if ("error" in data) {
-          setSaving(false);
-          setStatusNote("");
-          setFormError(data.error);
-          return;
-        }
-        nextAvatar = data.url;
-      } else {
-        const up = await uploadToSupabase(
-          pendingUuFile.current,
-          "avatar",
-          user.id
-        );
-        if ("error" in up) {
-          setSaving(false);
-          setStatusNote("");
-          setFormError(up.error);
-          return;
-        }
-        nextAvatar = up.url;
-      }
-      pendingUuFile.current = null;
-    }
-
+    const nextEnrollment = enrollmentId.trim() || null;
     const updated = await updateProfile({
       display_name: displayName.trim() || user.username,
       bio,
-      avatar_url: nextAvatar,
-      enrollment_id: enrollmentId.trim() || null,
+      enrollment_id: nextEnrollment,
       college_id: collegeId,
       class_id: classId,
       section_id: sectionId,
       socials,
     });
-    setSaving(false);
     if (!updated) {
+      setSaving(false);
       setStatusNote("");
       setFormError("Could not update profile. Try again.");
       toast.error("Profile update failed");
       return;
     }
+
+    // If still no photo, pull Image Finder DP from College ID
+    if (nextEnrollment && !updated.avatar_url) {
+      await ensureAvatarFromEnrollment({
+        userId: user.id,
+        enrollmentId: nextEnrollment,
+        avatarUrl: updated.avatar_url,
+        demoMode,
+        force: true,
+        updateAvatar: async (url) => {
+          await updateProfile({ avatar_url: url });
+        },
+      });
+    }
+
+    setSaving(false);
     setStatusNote("Profile updated");
     toast.success("Profile updated");
     setTimeout(() => {
       router.push(`/profile/${user.username}`);
     }, 700);
-  }
-
-  async function onAvatarChange(file: File | undefined) {
-    if (!file || !user) return;
-    setAvatarError("");
-    setUuPhotoNote("");
-    pendingUuFile.current = null;
-    if (demoMode) {
-      const res = await demoFileToDataUrl(file, "avatar");
-      if ("error" in res) {
-        setAvatarError(res.error);
-        return;
-      }
-      setAvatarUrl(res.url);
-      return;
-    }
-    const res = await uploadToSupabase(file, "avatar", user.id);
-    if ("error" in res) {
-      setAvatarError(res.error);
-      toast.error(res.error);
-      return;
-    }
-    setAvatarUrl(res.url);
   }
 
   if (!user) return null;
@@ -255,29 +178,9 @@ export default function EditProfilePage() {
               onChange={(e) => setEnrollmentId(e.target.value)}
               placeholder="UUID or roll number"
             />
-            {uuCollege ? (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className="btn btn-ghost h-9 text-xs"
-                  disabled={uuPhotoBusy || !enrollmentId.trim()}
-                  onClick={() => void importUniversityPhoto()}
-                >
-                  {uuPhotoBusy
-                    ? "Fetching…"
-                    : "Import university photo"}
-                </button>
-                {uuPhotoNote ? (
-                  <span className="text-xs text-[var(--popular)]">
-                    {uuPhotoNote}
-                  </span>
-                ) : (
-                  <span className="text-xs text-[var(--muted)]">
-                    Preview until you save.
-                  </span>
-                )}
-              </div>
-            ) : null}
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Used to set your photo automatically. Change photo in Settings.
+            </p>
           </div>
 
           <div className="border-t border-[var(--line)] pt-4">
@@ -360,22 +263,6 @@ export default function EditProfilePage() {
               value={bio}
               onChange={(e) => setBio(e.target.value)}
             />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm text-[var(--muted)]">
-              Avatar
-            </label>
-            <UploadTile
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onPick={(f) => void onAvatarChange(f)}
-              previewUrl={avatarUrl || null}
-              label="Photo"
-              size={96}
-            />
-            {avatarError ? (
-              <p className="mt-2 text-xs text-[var(--danger)]">{avatarError}</p>
-            ) : null}
           </div>
 
           {(["instagram", "linkedin", "github", "website"] as const).map(

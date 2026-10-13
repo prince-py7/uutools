@@ -27,6 +27,7 @@ import {
 } from "../verification";
 import { validateUpload } from "../uploads";
 import { canSendClassAnnouncements } from "../announcements";
+import { buildCommentThreads } from "../comments";
 import type { ClassRole, Post, Profile } from "../types";
 
 describe("username uniqueness", () => {
@@ -418,5 +419,43 @@ describe("class announcements gate", () => {
 
   it("denies classmates without a staff role", () => {
     expect(canSendClassAnnouncements(stubProfile(), [])).toBe(false);
+  });
+});
+
+describe("comment threads", () => {
+  it("nests replies under roots Instagram-style", () => {
+    const threads = buildCommentThreads([
+      {
+        id: "a",
+        post_id: "p",
+        author_id: "u1",
+        body: "hi",
+        parent_id: null,
+        like_count: 0,
+        created_at: "2024-01-01T00:00:00.000Z",
+      },
+      {
+        id: "b",
+        post_id: "p",
+        author_id: "u2",
+        body: "reply",
+        parent_id: "a",
+        like_count: 1,
+        created_at: "2024-01-01T00:01:00.000Z",
+      },
+      {
+        id: "c",
+        post_id: "p",
+        author_id: "u3",
+        body: "other",
+        parent_id: null,
+        like_count: 0,
+        created_at: "2024-01-01T00:02:00.000Z",
+      },
+    ]);
+    expect(threads).toHaveLength(2);
+    expect(threads[0].root.id).toBe("a");
+    expect(threads[0].replies.map((r) => r.id)).toEqual(["b"]);
+    expect(threads[1].root.id).toBe("c");
   });
 });

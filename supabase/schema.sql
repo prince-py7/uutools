@@ -128,8 +128,17 @@ create table if not exists public.comments (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.posts(id) on delete cascade,
   author_id uuid not null references public.profiles(id) on delete cascade,
+  parent_id uuid references public.comments(id) on delete cascade,
   body text not null,
+  like_count int not null default 0,
   created_at timestamptz not null default now()
+);
+
+create table if not exists public.comment_likes (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  comment_id uuid not null references public.comments(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, comment_id)
 );
 
 create table if not exists public.favourites (
@@ -407,6 +416,31 @@ create trigger comments_sync
   after insert or delete on public.comments
   for each row execute function public.sync_comment_count();
 
+create or replace function public.sync_comment_like_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.comments set like_count = like_count + 1 where id = new.comment_id;
+    return new;
+  elsif tg_op = 'DELETE' then
+    update public.comments
+    set like_count = greatest(like_count - 1, 0)
+    where id = old.comment_id;
+    return old;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists comment_likes_sync on public.comment_likes;
+create trigger comment_likes_sync
+  after insert or delete on public.comment_likes
+  for each row execute function public.sync_comment_like_count();
+
 create or replace function public.sync_share_count()
 returns trigger
 language plpgsql
@@ -615,6 +649,21 @@ create policy comments_write on public.comments for insert to authenticated
   with check (author_id = auth.uid());
 create policy comments_delete on public.comments for delete to authenticated
   using (author_id = auth.uid() or public.is_admin());
+
+alter table public.comment_likes enable row level security;
+create policy comment_likes_read on public.comment_likes for select to authenticated
+  using (
+    exists (
+      select 1
+      from public.comments c
+      join public.posts p on p.id = c.post_id
+      where c.id = comment_id and public.same_college(p.college_id)
+    )
+  );
+create policy comment_likes_write on public.comment_likes for insert to authenticated
+  with check (user_id = auth.uid());
+create policy comment_likes_delete on public.comment_likes for delete to authenticated
+  using (user_id = auth.uid());
 
 create policy fav_all on public.favourites for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());

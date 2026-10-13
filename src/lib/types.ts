@@ -139,6 +139,14 @@ export type Comment = {
   author_id: string;
   body: string;
   created_at: string;
+  /** Null = top-level comment; set for replies. */
+  parent_id?: string | null;
+  like_count?: number;
+};
+
+export type CommentLike = {
+  user_id: string;
+  comment_id: string;
 };
 
 export type TimetableSlot = {

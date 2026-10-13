@@ -18,6 +18,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
 import { MoreMenu } from "@/components/ui/MoreMenu";
 import { useToast } from "@/components/ui/Toast";
+import { CommentsPanel } from "@/components/feed/CommentsPanel";
 import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
@@ -29,6 +30,7 @@ import {
   demoAddComment,
   demoDeletePost,
   demoRecordShare,
+  demoToggleCommentLike,
   demoToggleFavourite,
   demoToggleLike,
   demoUpdatePost,
@@ -89,6 +91,16 @@ function PostCardInner({
   const [liked, setLiked] = useState(false);
   const [favoured, setFavoured] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentPeople, setCommentPeople] = useState<Record<string, Profile>>(
+    {}
+  );
+  const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [replyTo, setReplyTo] = useState<{
+    comment: Comment;
+    author: Profile | null;
+  } | null>(null);
   const [commentsLoaded, setCommentsLoaded] = useState(
     Boolean(initialComments?.length)
   );
@@ -120,7 +132,18 @@ function PostCardInner({
             )
         )
       );
-      setComments(catalog.comments.filter((c) => c.post_id === post.id));
+      const list = catalog.comments.filter((c) => c.post_id === post.id);
+      setComments(list);
+      const people: Record<string, Profile> = {};
+      for (const p of catalog.profiles) people[p.id] = p;
+      setCommentPeople(people);
+      const likedIds = new Set(
+        (catalog.commentLikes || [])
+          .filter((l) => l.user_id === user?.id)
+          .filter((l) => list.some((c) => c.id === l.comment_id))
+          .map((l) => l.comment_id)
+      );
+      setLikedCommentIds(likedIds);
       setCommentsLoaded(true);
       return;
     }
@@ -128,6 +151,7 @@ function PostCardInner({
     setFavoured(Boolean(initialFavoured));
     if (initialComments?.length) {
       setComments(initialComments);
+      if (peopleOverride) setCommentPeople(peopleOverride);
       setCommentsLoaded(true);
     } else {
       setComments([]);
@@ -139,17 +163,19 @@ function PostCardInner({
     catalog.likes,
     catalog.favourites,
     catalog.comments,
+    catalog.commentLikes,
+    catalog.profiles,
     post.id,
     initialLiked,
     initialFavoured,
     initialComments,
+    peopleOverride,
   ]);
 
   useEffect(() => {
     if (!showComments || demoMode || commentsLoaded) return;
     let cancelled = false;
     void (async () => {
-      const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
       const { data } = await supabase
         .from("comments")
@@ -157,13 +183,51 @@ function PostCardInner({
         .eq("post_id", post.id)
         .order("created_at", { ascending: true });
       if (cancelled) return;
-      setComments((data as Comment[]) || []);
+      const list = (data as Comment[]) || [];
+      setComments(list);
+
+      const authorIds = [...new Set(list.map((c) => c.author_id))];
+      const people: Record<string, Profile> = { ...(peopleOverride || {}) };
+      if (authorIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", authorIds);
+        for (const p of (profiles as Profile[]) || []) people[p.id] = p;
+      }
+      if (cancelled) return;
+      setCommentPeople(people);
+
+      if (user && list.length) {
+        const { data: likes } = await supabase
+          .from("comment_likes")
+          .select("comment_id")
+          .eq("user_id", user.id)
+          .in(
+            "comment_id",
+            list.map((c) => c.id)
+          );
+        if (!cancelled) {
+          setLikedCommentIds(
+            new Set(
+              ((likes as { comment_id: string }[]) || []).map((l) => l.comment_id)
+            )
+          );
+        }
+      }
       setCommentsLoaded(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [showComments, demoMode, commentsLoaded, post.id]);
+  }, [
+    showComments,
+    demoMode,
+    commentsLoaded,
+    post.id,
+    user,
+    peopleOverride,
+  ]);
 
   const author =
     authorOverride ??
@@ -417,31 +481,133 @@ function PostCardInner({
     e.preventDefault();
     if (!user || !comment.trim() || busy) return;
     const body = comment.trim();
+    const parentId = replyTo?.comment.id || null;
     if (demoMode) {
-      demoAddComment(user.id, post.id, body);
+      const created = demoAddComment(user.id, post.id, body, parentId);
+      if (created) {
+        setComments((prev) => [...prev, created]);
+        setPost((p) => ({ ...p, comment_count: p.comment_count + 1 }));
+        setCommentPeople((prev) => ({ ...prev, [user.id]: user }));
+      }
       setComment("");
+      setReplyTo(null);
       return;
     }
     setBusy(true);
     const supabase = createClient();
-    const { data, error } = await supabase
+    const payload: Record<string, unknown> = {
+      post_id: post.id,
+      author_id: user.id,
+      body,
+    };
+    if (parentId) payload.parent_id = parentId;
+    let { data, error } = await supabase
       .from("comments")
-      .insert({
-        post_id: post.id,
-        author_id: user.id,
-        body,
-      })
+      .insert(payload)
       .select("*")
       .single();
+    // Older DBs may not have parent_id yet — retry without it
+    if (
+      error &&
+      parentId &&
+      /parent_id|schema cache/i.test(error.message || "")
+    ) {
+      const retry = await supabase
+        .from("comments")
+        .insert({ post_id: post.id, author_id: user.id, body })
+        .select("*")
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
       toast.error(error.message);
       setBusy(false);
       return;
     }
     setComments((prev) => [...prev, data as Comment]);
+    setCommentPeople((prev) => ({ ...prev, [user.id]: user }));
     setPost((p) => ({ ...p, comment_count: p.comment_count + 1 }));
     setComment("");
+    setReplyTo(null);
     setBusy(false);
+  }
+
+  async function toggleCommentLike(commentId: string) {
+    if (!user || busy) return;
+    if (demoMode) {
+      const res = demoToggleCommentLike(user.id, commentId);
+      setLikedCommentIds((prev) => {
+        const next = new Set(prev);
+        if (res.liked) next.add(commentId);
+        else next.delete(commentId);
+        return next;
+      });
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId ? { ...c, like_count: res.like_count } : c
+        )
+      );
+      return;
+    }
+    const supabase = createClient();
+    const wasLiked = likedCommentIds.has(commentId);
+    // Optimistic
+    setLikedCommentIds((prev) => {
+      const next = new Set(prev);
+      if (wasLiked) next.delete(commentId);
+      else next.add(commentId);
+      return next;
+    });
+    setComments((prev) =>
+      prev.map((c) => {
+        if (c.id !== commentId) return c;
+        const n = Math.max((c.like_count || 0) + (wasLiked ? -1 : 1), 0);
+        return { ...c, like_count: n };
+      })
+    );
+    if (wasLiked) {
+      const { error } = await supabase
+        .from("comment_likes")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("comment_id", commentId);
+      if (error) {
+        toast.error(error.message);
+        setLikedCommentIds((prev) => new Set(prev).add(commentId));
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId
+              ? { ...c, like_count: (c.like_count || 0) + 1 }
+              : c
+          )
+        );
+      }
+    } else {
+      const { error } = await supabase.from("comment_likes").insert({
+        user_id: user.id,
+        comment_id: commentId,
+      });
+      if (error) {
+        toast.error(
+          /relation .*comment_likes|schema cache/i.test(error.message || "")
+            ? "Comment likes need a quick DB update — run patch_comment_replies_likes.sql"
+            : error.message
+        );
+        setLikedCommentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(commentId);
+          return next;
+        });
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId
+              ? { ...c, like_count: Math.max((c.like_count || 0) - 1, 0) }
+              : c
+          )
+        );
+      }
+    }
   }
 
   if (gone || !author) return null;
@@ -696,42 +862,27 @@ function PostCardInner({
         </button>
       </div>
 
-      {showComments && (
-        <div className="space-y-3 border-t border-[var(--line)] px-4 py-3">
-          {!demoMode && !commentsLoaded ? (
-            <p className="text-xs text-[var(--muted)]">Loading comments…</p>
-          ) : null}
-          {comments.map((c) => {
-            const a =
-              c.author_id === author.id
-                ? author
-                : peopleOverride?.[c.author_id] ||
-                  catalog.profiles.find((p) => p.id === c.author_id);
-            const label =
-              a?.display_name?.trim() ||
-              (c.author_id === user?.id ? "You" : null) ||
-              a?.username ||
-              "User";
-            return (
-              <div key={c.id} className="text-sm">
-                <span className="font-semibold">{label}</span>{" "}
-                <span className="text-[var(--muted)]">{c.body}</span>
-              </div>
-            );
-          })}
-          <form className="flex gap-2" onSubmit={(e) => void submitComment(e)}>
-            <input
-              className="input"
-              placeholder="Add a comment…"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-            <button className="btn btn-primary px-4" type="submit" disabled={busy}>
-              Post
-            </button>
-          </form>
-        </div>
-      )}
+      {showComments ? (
+        <CommentsPanel
+          comments={comments}
+          people={{
+            ...(peopleOverride || {}),
+            ...commentPeople,
+            ...(author ? { [author.id]: author } : {}),
+            ...(user ? { [user.id]: user } : {}),
+          }}
+          likedCommentIds={likedCommentIds}
+          currentUser={user}
+          draft={comment}
+          setDraft={setComment}
+          replyTo={replyTo}
+          setReplyTo={setReplyTo}
+          busy={busy}
+          loading={!demoMode && !commentsLoaded}
+          onSubmit={(e) => void submitComment(e)}
+          onToggleLike={(id) => void toggleCommentLike(id)}
+        />
+      ) : null}
     </article>
   );
 }

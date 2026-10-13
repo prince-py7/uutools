@@ -4,13 +4,17 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth-context";
+import { demoFileToDataUrl } from "@/lib/demo-store";
+import { ensureAvatarFromEnrollment } from "@/lib/ensure-avatar";
 import { enablePushNotifications, pushSupported } from "@/lib/push";
 import {
   getPushEnabledPref,
   setPushEnabledPref,
 } from "@/lib/push-prefs";
+import { uploadToSupabase } from "@/lib/supabase/upload";
 
 export default function ProfileSettingsPage() {
   const {
@@ -19,6 +23,8 @@ export default function ProfileSettingsPage() {
     requestEmailVerification,
     confirmEmailOtp,
     changePassword,
+    updateProfile,
+    demoMode,
   } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -36,6 +42,8 @@ export default function ProfileSettingsPage() {
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState("");
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   useEffect(() => {
     if (!ready) return;
@@ -121,6 +129,57 @@ export default function ProfileSettingsPage() {
     toast.success("Phone alerts enabled");
   }
 
+  async function onAvatarChange(file: File | undefined) {
+    if (!file || !user) return;
+    setAvatarBusy(true);
+    setAvatarError("");
+    if (demoMode) {
+      const res = await demoFileToDataUrl(file, "avatar");
+      setAvatarBusy(false);
+      if ("error" in res) {
+        setAvatarError(res.error);
+        return;
+      }
+      await updateProfile({ avatar_url: res.url });
+      toast.success("Photo updated");
+      return;
+    }
+    const res = await uploadToSupabase(file, "avatar", user.id);
+    setAvatarBusy(false);
+    if ("error" in res) {
+      setAvatarError(res.error);
+      toast.error(res.error);
+      return;
+    }
+    await updateProfile({ avatar_url: res.url });
+    toast.success("Photo updated");
+  }
+
+  async function onUseCollegeIdPhoto() {
+    if (!user) return;
+    if (!user.enrollment_id?.trim()) {
+      setAvatarError("Add your College ID in Edit profile first");
+      return;
+    }
+    setAvatarBusy(true);
+    setAvatarError("");
+    const res = await ensureAvatarFromEnrollment({
+      userId: user.id,
+      enrollmentId: user.enrollment_id,
+      avatarUrl: null, // force refresh from UUID
+      demoMode,
+      force: true,
+      updateAvatar: async (url) => {
+        await updateProfile({ avatar_url: url });
+      },
+    });
+    setAvatarBusy(false);
+    if (res === "set") toast.success("Photo set from College ID");
+    else if (res === "failed") {
+      setAvatarError("Image not available for this College ID");
+    }
+  }
+
   if (!user) return null;
 
   return (
@@ -132,6 +191,38 @@ export default function ProfileSettingsPage() {
             Back to profile
           </Link>
         </div>
+
+        <section className="card space-y-3 p-5">
+          <h2 className="text-sm font-semibold">Profile photo</h2>
+          <UploadTile
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onPick={(f) => void onAvatarChange(f)}
+            previewUrl={user.avatar_url}
+            label={avatarBusy ? "Saving…" : "Upload photo"}
+            disabled={avatarBusy}
+            size={96}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost h-9 w-full text-xs"
+            disabled={avatarBusy || !user.enrollment_id?.trim()}
+            onClick={() => void onUseCollegeIdPhoto()}
+          >
+            Use College ID photo
+          </button>
+          {user.enrollment_id ? (
+            <p className="text-xs text-[var(--muted)]">
+              College ID: {user.enrollment_id}
+            </p>
+          ) : (
+            <p className="text-xs text-[var(--muted)]">
+              Add a College ID in Edit profile to auto-fill your photo.
+            </p>
+          )}
+          {avatarError ? (
+            <p className="text-xs text-[var(--danger)]">{avatarError}</p>
+          ) : null}
+        </section>
 
         <section className="card space-y-3 p-5">
           <h2 className="text-sm font-semibold">Account</h2>
@@ -257,7 +348,7 @@ export default function ProfileSettingsPage() {
         ) : null}
 
         <p className="px-1 text-sm text-[var(--muted)]">
-          Photo, bio, campus:{" "}
+          Name, bio, campus:{" "}
           <Link href="/profile/edit" className="text-[var(--accent)]">
             Edit profile
           </Link>

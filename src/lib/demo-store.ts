@@ -25,7 +25,7 @@ import { validateTimetableSlot } from "./timetable";
 import { canSendVerification } from "./verification";
 import type { UploadKind } from "./uploads";
 
-const KEY = "uu-community-demo-v7";
+const KEY = "uu-community-demo-v8";
 
 export type DemoState = {
   sessionUserId: string | null;
@@ -41,6 +41,7 @@ export type DemoState = {
   posts: Post[];
   likes: { user_id: string; post_id: string }[];
   comments: Comment[];
+  commentLikes: { user_id: string; comment_id: string }[];
   favourites: { user_id: string; post_id: string }[];
   shares: { id: string; user_id: string; post_id: string }[];
   timetables: TimetableSlot[];
@@ -267,7 +268,7 @@ function seed(): DemoState {
         media_name: "DBMS_Unit2_ER_Normalization.pdf",
         media_type: "pdf",
         like_count: 12,
-        comment_count: 2,
+        comment_count: 3,
         share_count: 0,
         is_official_verified: true,
         created_at: new Date(now - 1000 * 60 * 30).toISOString(),
@@ -393,6 +394,8 @@ function seed(): DemoState {
         post_id: "post-1",
         author_id: stu1,
         body: "Thanks CR",
+        parent_id: null,
+        like_count: 1,
         created_at: new Date(now - 1000 * 60 * 10).toISOString(),
       },
       {
@@ -400,9 +403,21 @@ function seed(): DemoState {
         post_id: "post-1",
         author_id: stu2,
         body: "Can you add Unit 3 too?",
+        parent_id: null,
+        like_count: 0,
         created_at: new Date(now - 1000 * 60 * 5).toISOString(),
       },
+      {
+        id: "c2r1",
+        post_id: "post-1",
+        author_id: crId,
+        body: "Yes — uploading tonight",
+        parent_id: "c2",
+        like_count: 0,
+        created_at: new Date(now - 1000 * 60 * 3).toISOString(),
+      },
     ],
+    commentLikes: [{ user_id: stu2, comment_id: "c1" }],
     favourites: [],
     shares: [],
     timetables: [],
@@ -563,6 +578,12 @@ function migrate(raw: DemoState): DemoState {
       academic_year: p.academic_year ?? null,
       media_name: p.media_name ?? null,
     })),
+    comments: (raw.comments || base.comments || []).map((c) => ({
+      ...c,
+      parent_id: c.parent_id ?? null,
+      like_count: c.like_count ?? 0,
+    })),
+    commentLikes: raw.commentLikes || [],
     shares: raw.shares || [],
     stories: raw.stories || base.stories,
     storyViews: raw.storyViews || [],
@@ -881,7 +902,13 @@ export function demoDeletePost(
   }
   state.posts = state.posts.filter((p) => p.id !== postId);
   state.likes = state.likes.filter((l) => l.post_id !== postId);
+  const removedIds = new Set(
+    state.comments.filter((c) => c.post_id === postId).map((c) => c.id)
+  );
   state.comments = state.comments.filter((c) => c.post_id !== postId);
+  state.commentLikes = (state.commentLikes || []).filter(
+    (l) => !removedIds.has(l.comment_id)
+  );
   state.favourites = state.favourites.filter((f) => f.post_id !== postId);
   state.shares = state.shares.filter((s) => s.post_id !== postId);
   write(state);
@@ -923,21 +950,53 @@ export function demoToggleLike(userId: string, postId: string) {
   write(state);
 }
 
-export function demoAddComment(userId: string, postId: string, body: string) {
+export function demoAddComment(
+  userId: string,
+  postId: string,
+  body: string,
+  parentId?: string | null
+) {
   const state = read();
   const post = state.posts.find((p) => p.id === postId);
   if (!post) return null;
+  const parent = parentId
+    ? state.comments.find((c) => c.id === parentId && c.post_id === postId)
+    : null;
   const comment: Comment = {
     id: id(),
     post_id: postId,
     author_id: userId,
     body,
+    parent_id: parent ? parent.id : null,
+    like_count: 0,
     created_at: new Date().toISOString(),
   };
   state.comments.push(comment);
   post.comment_count += 1;
   write(state);
   return comment;
+}
+
+export function demoToggleCommentLike(userId: string, commentId: string) {
+  const state = read();
+  const comment = state.comments.find((c) => c.id === commentId);
+  if (!comment) return { liked: false, like_count: 0 };
+  state.commentLikes = state.commentLikes || [];
+  const exists = state.commentLikes.find(
+    (l) => l.user_id === userId && l.comment_id === commentId
+  );
+  if (exists) {
+    state.commentLikes = state.commentLikes.filter(
+      (l) => !(l.user_id === userId && l.comment_id === commentId)
+    );
+    comment.like_count = Math.max((comment.like_count || 0) - 1, 0);
+    write(state);
+    return { liked: false, like_count: comment.like_count };
+  }
+  state.commentLikes.push({ user_id: userId, comment_id: commentId });
+  comment.like_count = (comment.like_count || 0) + 1;
+  write(state);
+  return { liked: true, like_count: comment.like_count };
 }
 
 export function demoToggleFavourite(userId: string, postId: string) {

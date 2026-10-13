@@ -38,6 +38,7 @@ import {
   shouldShowPushPrompt,
 } from "@/lib/push-prefs";
 import { demoUnreadMessageCount } from "@/lib/demo-store";
+import { ensureAvatarFromEnrollment } from "@/lib/ensure-avatar";
 import { ShellProvider, useShell } from "@/lib/shell-context";
 import { verificationReminder } from "@/lib/verification";
 
@@ -85,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, demoMode } = useAuth();
+  const { user, logout, demoMode, updateProfile } = useAuth();
   const catalog = useDemoCatalog();
   const {
     composerOpen,
@@ -225,6 +226,32 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     }
     setShowPushPrompt(shouldShowPushPrompt());
   }, [user]);
+
+  // Auto DP: College ID / UUID → same Image Finder photo when avatar is empty
+  useEffect(() => {
+    if (!user?.enrollment_id || user.avatar_url) return;
+    let cancelled = false;
+    void ensureAvatarFromEnrollment({
+      userId: user.id,
+      enrollmentId: user.enrollment_id,
+      avatarUrl: user.avatar_url,
+      demoMode,
+      updateAvatar: async (url) => {
+        if (cancelled) return;
+        await updateProfile({ avatar_url: url });
+      },
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user?.id,
+    user?.enrollment_id,
+    user?.avatar_url,
+    demoMode,
+    updateProfile,
+    user,
+  ]);
 
   const reminder = user ? verificationReminder(user) : null;
   const profileHref = user ? `/profile/${user.username}` : "/login";

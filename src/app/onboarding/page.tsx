@@ -7,12 +7,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { isSupabaseConfigured } from "@/lib/config";
 import type { ClassRow, College, Section, Semester } from "@/lib/types";
-import {
-  fetchUniversityPhotoFile,
-  isUnitedUniversity,
-} from "@/lib/university-photo";
-import { demoFileToDataUrl } from "@/lib/demo-store";
-import { uploadToSupabase } from "@/lib/supabase/upload";
+import { ensureAvatarFromEnrollment } from "@/lib/ensure-avatar";
 
 export default function OnboardingPage() {
   const { user, ready, updateProfile, demoMode } = useAuth();
@@ -125,37 +120,35 @@ export default function OnboardingPage() {
     setSaving(true);
     setError("");
 
-    const college = colleges.find((c) => c.id === collegeId) || null;
-    let avatarUrl = user.avatar_url;
-    if (isUnitedUniversity(college)) {
-      const photo = await fetchUniversityPhotoFile(enrollmentId.trim());
-      if (!("error" in photo)) {
-        if (demoMode) {
-          const data = await demoFileToDataUrl(photo.file, "avatar");
-          if (!("error" in data)) avatarUrl = data.url;
-        } else {
-          const up = await uploadToSupabase(photo.file, "avatar", user.id);
-          if (!("error" in up)) avatarUrl = up.url;
-        }
-      }
-    }
-
     const updated = await updateProfile({
       college_id: collegeId,
       class_id: classId,
       semester_id: semesterId,
       section_id: sectionId,
       enrollment_id: enrollmentId.trim(),
-      avatar_url: avatarUrl,
       onboarding_complete: true,
     });
-    setSaving(false);
     if (!updated) {
-      setError(
-        "Could not save. Try again or contact support."
-      );
+      setSaving(false);
+      setError("Could not save. Try again or contact support.");
       return;
     }
+
+    // Same Image Finder flow: UUID → campus photo → DP
+    if (!updated.avatar_url) {
+      await ensureAvatarFromEnrollment({
+        userId: user.id,
+        enrollmentId: enrollmentId.trim(),
+        avatarUrl: updated.avatar_url,
+        demoMode,
+        force: true,
+        updateAvatar: async (url) => {
+          await updateProfile({ avatar_url: url });
+        },
+      });
+    }
+
+    setSaving(false);
     router.push("/home");
   }
 
@@ -287,8 +280,8 @@ export default function OnboardingPage() {
                 required
               />
               <p className="mt-1 text-xs text-[var(--muted)]">
-                Your roll / enrollment number. Photo may auto-import for United
-                University.
+                Your UUID / roll number. Photo is set automatically when
+                available.
               </p>
             </div>
             {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
