@@ -180,7 +180,7 @@ export default function TimetablePage() {
     }
     setDraft(slotsToTemplateGrid(res.slots));
     setEditing(true);
-    toast.success("Template loaded — edit then save");
+    toast.success("Template loaded. Edit, then save.");
   }
 
   async function saveAll() {
