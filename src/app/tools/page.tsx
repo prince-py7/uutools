@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Bell,
+  BookOpen,
   Calculator,
   CalendarDays,
   Image as ImageIcon,
@@ -41,6 +42,12 @@ const BASE_TOOLS = [
     title: "Favourites",
     blurb: "Posts you saved",
     icon: Star,
+  },
+  {
+    href: "/tools/study-materials",
+    title: "Study Materials",
+    blurb: "Find notes by class, semester, subject & year",
+    icon: BookOpen,
   },
 ];
 

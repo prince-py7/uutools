@@ -1,11 +1,16 @@
 import { createClient } from "@/lib/supabase/client";
 import { getDemoState, saveDemoState } from "@/lib/demo-store";
 import { isSupabaseConfigured } from "@/lib/config";
-import type { AppNotification } from "@/lib/types";
+import type { AppNotification, NotificationType } from "@/lib/types";
 
 type DemoWithNotes = ReturnType<typeof getDemoState> & {
   notifications?: AppNotification[];
 };
+
+export function notifyNotificationsUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("uu-notifications-updated"));
+}
 
 function demoList(userId: string): AppNotification[] {
   const state = getDemoState() as DemoWithNotes;
@@ -69,6 +74,7 @@ export async function markNotificationRead(
           : n
       ),
     } as never);
+    notifyNotificationsUpdated();
     return {};
   }
   const supabase = createClient();
@@ -78,6 +84,7 @@ export async function markNotificationRead(
     .eq("id", notificationId)
     .eq("user_id", userId);
   if (error) return { error: error.message };
+  notifyNotificationsUpdated();
   return {};
 }
 
@@ -93,6 +100,7 @@ export async function markAllNotificationsRead(
         n.user_id === userId && !n.read_at ? { ...n, read_at: now } : n
       ),
     } as never);
+    notifyNotificationsUpdated();
     return {};
   }
   const supabase = createClient();
@@ -102,6 +110,7 @@ export async function markAllNotificationsRead(
     .eq("user_id", userId)
     .is("read_at", null);
   if (error) return { error: error.message };
+  notifyNotificationsUpdated();
   return {};
 }
 
@@ -111,4 +120,40 @@ export function insertDemoNotifications(items: AppNotification[]) {
     ...state,
     notifications: [...items, ...(state.notifications || [])],
   } as never);
+  notifyNotificationsUpdated();
+}
+
+/** Insert a live notification (+ optional push). Best-effort; ignores table-missing errors. */
+export async function notifyUser(opts: {
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  refId?: string | null;
+  pushUrl?: string;
+}): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const supabase = createClient();
+  await supabase.from("notifications").insert({
+    user_id: opts.userId,
+    type: opts.type,
+    title: opts.title,
+    body: opts.body,
+    ref_id: opts.refId || null,
+  });
+  notifyNotificationsUpdated();
+  try {
+    await fetch("/api/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userIds: [opts.userId],
+        title: opts.title,
+        body: opts.body,
+        url: opts.pushUrl || "/notifications",
+      }),
+    });
+  } catch {
+    /* best-effort */
+  }
 }

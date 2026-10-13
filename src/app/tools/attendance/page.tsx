@@ -169,7 +169,7 @@ export default function AttendancePage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1.5">
                 <span className="text-xs text-[var(--muted)]">
-                  Lectures held so far
+                  Total Lectures
                 </span>
                 <input
                   className="input"
@@ -186,7 +186,7 @@ export default function AttendancePage() {
               </label>
               <label className="block space-y-1.5">
                 <span className="text-xs text-[var(--muted)]">
-                  Lectures you attended
+                  Lectures Attended
                 </span>
                 <input
                   className="input"

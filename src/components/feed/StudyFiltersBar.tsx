@@ -135,7 +135,7 @@ export function StudyFiltersBar({
               onChange={(e) => setVerifiedOnly(e.target.checked)}
             />
             Verified only
-            <span className="text-xs text-[var(--muted)]">(default on)</span>
+            <span className="text-xs text-[var(--muted)]">(optional)</span>
           </label>
           <select
             className="input"

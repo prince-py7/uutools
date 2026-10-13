@@ -2,6 +2,8 @@
 
 import type {
   ClassRole,
+  RoleDefinition,
+  TeacherDelegation,
   ClassRow,
   College,
   Comment,
@@ -11,6 +13,7 @@ import type {
   Post,
   Profile,
   Section,
+  Semester,
   Story,
   Subject,
   TimetableSlot,
@@ -22,22 +25,27 @@ import { validateTimetableSlot } from "./timetable";
 import { canSendVerification } from "./verification";
 import type { UploadKind } from "./uploads";
 
-const KEY = "uu-community-demo-v4";
+const KEY = "uu-community-demo-v7";
 
 export type DemoState = {
   sessionUserId: string | null;
   colleges: College[];
   classes: ClassRow[];
+  semesters: Semester[];
   sections: Section[];
   subjects: Subject[];
   profiles: Profile[];
   roles: ClassRole[];
+  roleDefinitions: RoleDefinition[];
+  teacherDelegations: TeacherDelegation[];
   posts: Post[];
   likes: { user_id: string; post_id: string }[];
   comments: Comment[];
   favourites: { user_id: string; post_id: string }[];
   shares: { id: string; user_id: string; post_id: string }[];
   timetables: TimetableSlot[];
+  timetableTemplates: import("./types").TimetableTemplate[];
+  timetableTemplateSlots: import("./types").TimetableTemplateSlot[];
   stories: Story[];
   storyViews: { story_id: string; viewer_id: string }[];
   friendRequests: FriendRequest[];
@@ -58,10 +66,18 @@ function seed(): DemoState {
   const btechId = "class-btech";
   const secA = "sec-bca-a";
   const secB = "sec-bca-b";
+  const secBca2C = "sec-bca-2-c";
+  const secBca1A = "sec-bca-1-a";
+  const secBca1B = "sec-bca-1-b";
   const secCse = "sec-btech-cse";
+  const semBca1 = "sem-bca-1";
+  const semBca2 = "sem-bca-2";
+  const semBtech1 = "sem-btech-1";
   const subDbms = "sub-dbms";
   const subOs = "sub-os";
   const subMath = "sub-math";
+  const subMath2 = "sub-math-sem2";
+  const ttTpl1 = "tt-tpl-bca-b-sem2";
 
   const adminId = "user-admin";
   const crId = "user-cr";
@@ -97,14 +113,26 @@ function seed(): DemoState {
       { id: btechId, college_id: collegeId, name: "BTech" },
     ],
     sections: [
-      { id: secA, class_id: bcaId, name: "A" },
-      { id: secB, class_id: bcaId, name: "B" },
-      { id: secCse, class_id: btechId, name: "CSE" },
+      // Sem 1 — fewer sections
+      { id: secBca1A, class_id: bcaId, semester_id: semBca1, name: "A" },
+      { id: secBca1B, class_id: bcaId, semester_id: semBca1, name: "B" },
+      // Sem 2 — more sections
+      { id: secA, class_id: bcaId, semester_id: semBca2, name: "A" },
+      { id: secB, class_id: bcaId, semester_id: semBca2, name: "B" },
+      { id: secBca2C, class_id: bcaId, semester_id: semBca2, name: "C" },
+      { id: secCse, class_id: btechId, semester_id: semBtech1, name: "CSE" },
+    ],
+    semesters: [
+      { id: semBca1, class_id: bcaId, name: "Semester 1", sort_order: 1 },
+      { id: semBca2, class_id: bcaId, name: "Semester 2", sort_order: 2 },
+      { id: semBtech1, class_id: btechId, name: "Semester 1", sort_order: 1 },
     ],
     subjects: [
-      { id: subDbms, class_id: bcaId, name: "DBMS" },
-      { id: subOs, class_id: bcaId, name: "Operating Systems" },
-      { id: subMath, class_id: bcaId, name: "Mathematics" },
+      { id: subDbms, class_id: bcaId, semester_id: semBca2, name: "DBMS" },
+      { id: subOs, class_id: bcaId, semester_id: semBca2, name: "Operating Systems" },
+      { id: subMath, class_id: bcaId, semester_id: semBca1, name: "Mathematics" },
+      // Same subject name allowed in another semester
+      { id: subMath2, class_id: bcaId, semester_id: semBca2, name: "Mathematics" },
     ],
     profiles: [
       {
@@ -117,6 +145,7 @@ function seed(): DemoState {
         avatar_url: null,
         college_id: collegeId,
         class_id: bcaId,
+        semester_id: semBca2,
         section_id: secB,
         enrollment_id: null,
         socials: { github: "https://github.com/prince-py7" },
@@ -135,6 +164,7 @@ function seed(): DemoState {
         avatar_url: null,
         college_id: collegeId,
         class_id: bcaId,
+        semester_id: semBca2,
         section_id: secB,
         enrollment_id: null,
         socials: {},
@@ -153,6 +183,7 @@ function seed(): DemoState {
         avatar_url: null,
         college_id: collegeId,
         class_id: bcaId,
+        semester_id: semBca2,
         section_id: secB,
         enrollment_id: null,
         socials: {},
@@ -171,6 +202,7 @@ function seed(): DemoState {
         avatar_url: null,
         college_id: collegeId,
         class_id: bcaId,
+        semester_id: semBca2,
         section_id: secB,
         enrollment_id: null,
         socials: { instagram: "https://instagram.com" },
@@ -189,6 +221,7 @@ function seed(): DemoState {
         avatar_url: null,
         college_id: collegeId,
         class_id: bcaId,
+        semester_id: semBca2,
         section_id: secA,
         enrollment_id: null,
         socials: {},
@@ -198,6 +231,8 @@ function seed(): DemoState {
         last_verification_sent_at: null,
       },
     ],
+    roleDefinitions: [],
+    teacherDelegations: [],
     roles: [
       {
         id: "role-cr",
@@ -221,11 +256,15 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: semBca2,
+        study_unit: "Unit 2",
+        academic_year: "2024-25",
         kind: "study",
         study_type: "unit",
         subject_id: subDbms,
         caption: "Unit 2 DBMS notes (official) — ER diagrams + normalization.",
         media_url: null,
+        media_name: "DBMS_Unit2_ER_Normalization.pdf",
         media_type: "pdf",
         like_count: 12,
         comment_count: 2,
@@ -239,12 +278,16 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: semBca2,
+        study_unit: "Assignment 3",
+        academic_year: "2024-25",
         kind: "study",
         study_type: "assignment",
         subject_id: subDbms,
         caption: "Assignment 3 due Friday. Submit PDF on portal.",
         media_url: null,
-        media_type: "none",
+        media_name: "DBMS_Assignment3_Questions.pdf",
+        media_type: "pdf",
         like_count: 8,
         comment_count: 1,
         share_count: 0,
@@ -257,11 +300,15 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: null,
+        study_unit: null,
+        academic_year: null,
         kind: "social",
         study_type: null,
         subject_id: null,
         caption: "Fest prep vibes in the cafeteria",
         media_url: null,
+        media_name: null,
         media_type: "image",
         like_count: 5,
         comment_count: 0,
@@ -275,11 +322,15 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: semBca2,
+        study_unit: "Unit 1",
+        academic_year: "2024-25",
         kind: "study",
         study_type: "unit",
         subject_id: subOs,
         caption: "OS Unit 1 summary I made — paging + scheduling. Hope this helps!",
         media_url: null,
+        media_name: "OS_Unit1_Paging_Scheduling.pdf",
         media_type: "pdf",
         like_count: 11,
         comment_count: 1,
@@ -293,11 +344,15 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secA,
+        semester_id: semBca1,
+        study_unit: "Lab 4",
+        academic_year: "2023-24",
         kind: "study",
         study_type: "practical",
         subject_id: subMath,
         caption: "Practical lab sheet — numerical methods.",
         media_url: null,
+        media_name: "Math_Lab4_Numerical_Methods.pdf",
         media_type: "pdf",
         like_count: 3,
         comment_count: 0,
@@ -311,11 +366,15 @@ function seed(): DemoState {
         college_id: collegeId,
         class_id: bcaId,
         section_id: secB,
+        semester_id: null,
+        study_unit: null,
+        academic_year: null,
         kind: "social",
         study_type: null,
         subject_id: null,
         caption: "Reminder: mid-sem seating out tomorrow morning.",
         media_url: null,
+        media_name: null,
         media_type: "none",
         like_count: 15,
         comment_count: 3,
@@ -347,6 +406,34 @@ function seed(): DemoState {
     favourites: [],
     shares: [],
     timetables: [],
+    timetableTemplates: [
+      {
+        id: ttTpl1,
+        college_id: collegeId,
+        class_id: bcaId,
+        semester_id: semBca2,
+        section_id: secB,
+        name: "BCA Sem 2 · Section B (default)",
+        created_by: adminId,
+        created_at: new Date(now - 1000 * 60 * 60 * 24).toISOString(),
+        updated_at: new Date(now - 1000 * 60 * 60 * 24).toISOString(),
+      },
+    ],
+    timetableTemplateSlots: [
+      { id: "tts-1", template_id: ttTpl1, day_of_week: 1, slot: 1, subject_text: "DBMS" },
+      { id: "tts-2", template_id: ttTpl1, day_of_week: 1, slot: 2, subject_text: "OS" },
+      { id: "tts-3", template_id: ttTpl1, day_of_week: 1, slot: 3, subject_text: "Lunch" },
+      { id: "tts-4", template_id: ttTpl1, day_of_week: 1, slot: 4, subject_text: "Mathematics" },
+      { id: "tts-5", template_id: ttTpl1, day_of_week: 2, slot: 1, subject_text: "OS" },
+      { id: "tts-6", template_id: ttTpl1, day_of_week: 2, slot: 2, subject_text: "DBMS Lab" },
+      { id: "tts-7", template_id: ttTpl1, day_of_week: 2, slot: 3, subject_text: "Lunch" },
+      { id: "tts-8", template_id: ttTpl1, day_of_week: 3, slot: 1, subject_text: "Mathematics" },
+      { id: "tts-9", template_id: ttTpl1, day_of_week: 3, slot: 2, subject_text: "Library" },
+      { id: "tts-10", template_id: ttTpl1, day_of_week: 4, slot: 1, subject_text: "DBMS" },
+      { id: "tts-11", template_id: ttTpl1, day_of_week: 4, slot: 2, subject_text: "OS" },
+      { id: "tts-12", template_id: ttTpl1, day_of_week: 5, slot: 1, subject_text: "Mathematics" },
+      { id: "tts-13", template_id: ttTpl1, day_of_week: 5, slot: 2, subject_text: "Lunch" },
+    ],
     stories: [
       {
         id: "story-1",
@@ -392,6 +479,14 @@ function seed(): DemoState {
         status: "accepted",
         created_at: new Date(now - 1000 * 60 * 60 * 24).toISOString(),
         updated_at: new Date(now - 1000 * 60 * 60 * 20).toISOString(),
+      },
+      {
+        id: "fr-pending-1",
+        from_user_id: profId,
+        to_user_id: stu1,
+        status: "pending",
+        created_at: new Date(now - 1000 * 60 * 30).toISOString(),
+        updated_at: new Date(now - 1000 * 60 * 30).toISOString(),
       },
     ],
     conversations: [
@@ -463,6 +558,10 @@ function migrate(raw: DemoState): DemoState {
     posts: (raw.posts || []).map((p) => ({
       ...p,
       share_count: p.share_count ?? 0,
+      semester_id: p.semester_id ?? null,
+      study_unit: p.study_unit ?? null,
+      academic_year: p.academic_year ?? null,
+      media_name: p.media_name ?? null,
     })),
     shares: raw.shares || [],
     stories: raw.stories || base.stories,
@@ -476,6 +575,24 @@ function migrate(raw: DemoState): DemoState {
       read_at: m.read_at ?? null,
     })),
     freeTierNotice: raw.freeTierNotice || base.freeTierNotice,
+    roleDefinitions: raw.roleDefinitions || [],
+    teacherDelegations: raw.teacherDelegations || [],
+    semesters: raw.semesters || base.semesters || [],
+    sections: (raw.sections || base.sections || []).map((s) => ({
+      ...s,
+      semester_id: s.semester_id ?? null,
+    })),
+    subjects: (raw.subjects || base.subjects || []).map((s) => ({
+      ...s,
+      semester_id: s.semester_id ?? null,
+    })),
+    profiles: (raw.profiles || base.profiles || []).map((p) => ({
+      ...p,
+      semester_id: p.semester_id ?? null,
+    })),
+    timetableTemplates: raw.timetableTemplates || base.timetableTemplates || [],
+    timetableTemplateSlots:
+      raw.timetableTemplateSlots || base.timetableTemplateSlots || [],
   };
 }
 
@@ -563,6 +680,7 @@ export function demoSignup(opts: {
     college_id: null,
     class_id: null,
     section_id: null,
+    semester_id: null,
     enrollment_id: null,
     socials: {},
     is_admin: false,
@@ -770,6 +888,22 @@ export function demoDeletePost(
   return { ok: true };
 }
 
+export function demoUpdatePost(
+  userId: string,
+  postId: string,
+  caption: string
+): { ok: boolean; error?: string; post?: Post } {
+  const state = read();
+  const post = state.posts.find((p) => p.id === postId);
+  if (!post) return { ok: false, error: "Post not found" };
+  if (post.author_id !== userId) {
+    return { ok: false, error: "You can only edit your own posts" };
+  }
+  post.caption = caption.trim();
+  write(state);
+  return { ok: true, post };
+}
+
 export function demoToggleLike(userId: string, postId: string) {
   const state = read();
   const existing = state.likes.find(
@@ -907,6 +1041,37 @@ export function demoMarkStoryViewed(storyId: string, viewerId: string) {
   }
 }
 
+
+function pushDemoNotification(n: {
+  user_id: string;
+  type: "friend_request" | "friend_accepted";
+  title: string;
+  body: string;
+  ref_id?: string | null;
+}) {
+  const state = read() as DemoState & { notifications?: import("./types").AppNotification[] };
+  const item = {
+    id: id(),
+    user_id: n.user_id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    ref_id: n.ref_id || null,
+    read_at: null,
+    created_at: new Date().toISOString(),
+  };
+  const notes = [item, ...(state.notifications || [])];
+  write({ ...state, notifications: notes } as DemoState);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("uu-notifications-updated"));
+  }
+}
+
+function emitFriendsUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("uu-friends-updated"));
+}
+
 export function demoSendFriendRequest(fromId: string, toId: string) {
   const state = read();
   if (fromId === toId) return { error: "Cannot friend yourself" };
@@ -923,7 +1088,30 @@ export function demoSendFriendRequest(fromId: string, toId: string) {
   );
   if (existing) {
     if (existing.status === "accepted") return { error: "Already friends" };
-    if (existing.status === "pending") return { error: "Request already pending" };
+    if (existing.status === "pending") {
+      if (existing.from_user_id === fromId) {
+        return { error: "Request already pending" };
+      }
+      return {
+        error: "They already sent you a request — accept it in Friends",
+        alreadyIncoming: true,
+      };
+    }
+    // rejected → reopen
+    existing.from_user_id = fromId;
+    existing.to_user_id = toId;
+    existing.status = "pending";
+    existing.updated_at = new Date().toISOString();
+    write(state);
+    emitFriendsUpdated();
+    pushDemoNotification({
+      user_id: toId,
+      type: "friend_request",
+      title: "Friend request",
+      body: `${from.display_name} sent you a friend request`,
+      ref_id: existing.id,
+    });
+    return { request: existing };
   }
   const req: FriendRequest = {
     id: id(),
@@ -935,6 +1123,14 @@ export function demoSendFriendRequest(fromId: string, toId: string) {
   };
   state.friendRequests.push(req);
   write(state);
+  emitFriendsUpdated();
+  pushDemoNotification({
+    user_id: toId,
+    type: "friend_request",
+    title: "Friend request",
+    body: `${from.display_name} sent you a friend request`,
+    ref_id: req.id,
+  });
   return { request: req };
 }
 
@@ -970,7 +1166,64 @@ export function demoRespondFriendRequest(
     }
   }
   write(state);
+  emitFriendsUpdated();
+  if (accept) {
+    const accepter = state.profiles.find((p) => p.id === userId);
+    pushDemoNotification({
+      user_id: req.from_user_id,
+      type: "friend_accepted",
+      title: "Friend request accepted",
+      body: `${accepter?.display_name || "Someone"} accepted your friend request`,
+      ref_id: req.id,
+    });
+  }
   return { request: req };
+}
+
+export function demoCancelFriendRequest(requestId: string, userId: string) {
+  const state = read();
+  const req = state.friendRequests.find((r) => r.id === requestId);
+  if (!req) return { error: "Request not found" };
+  if (req.from_user_id !== userId) return { error: "Not your request" };
+  if (req.status !== "pending") return { error: "Already handled" };
+  req.status = "rejected";
+  req.updated_at = new Date().toISOString();
+  write(state);
+  emitFriendsUpdated();
+  return { request: req };
+}
+
+export function demoRemoveFriend(userId: string, friendId: string) {
+  const state = read();
+  const req = state.friendRequests.find(
+    (r) =>
+      r.status === "accepted" &&
+      ((r.from_user_id === userId && r.to_user_id === friendId) ||
+        (r.from_user_id === friendId && r.to_user_id === userId))
+  );
+  if (!req) return { error: "Friendship not found" };
+  req.status = "rejected";
+  req.updated_at = new Date().toISOString();
+  write(state);
+  emitFriendsUpdated();
+  return {};
+}
+
+export function demoFriendshipStatus(
+  userId: string,
+  otherId: string
+): "none" | "pending_out" | "pending_in" | "friends" {
+  if (userId === otherId) return "none";
+  const state = read();
+  const existing = state.friendRequests.find(
+    (r) =>
+      (r.from_user_id === userId && r.to_user_id === otherId) ||
+      (r.from_user_id === otherId && r.to_user_id === userId)
+  );
+  if (!existing || existing.status === "rejected") return "none";
+  if (existing.status === "accepted") return "friends";
+  if (existing.from_user_id === userId) return "pending_out";
+  return "pending_in";
 }
 
 export function demoAreFriends(a: string, b: string) {
@@ -1108,7 +1361,7 @@ export async function demoFileToDataUrl(
   file: File,
   kind: UploadKind
 ): Promise<
-  | { url: string; mediaType: "image" | "pdf" | "video" | "audio" }
+  | { url: string; mediaType: "image" | "pdf" | "video" | "audio"; fileName: string }
   | { error: string }
 > {
   const { prepareUploadFile } = await import("./uploads");
@@ -1120,7 +1373,7 @@ export async function demoFileToDataUrl(
     reader.onerror = () => reject(new Error("Read failed"));
     reader.readAsDataURL(prepared.file);
   });
-  return { url, mediaType: prepared.mediaType };
+  return { url, mediaType: prepared.mediaType, fileName: prepared.file.name };
 }
 
 export { id as newId };

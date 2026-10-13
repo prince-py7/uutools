@@ -18,17 +18,24 @@ In Supabase → SQL Editor, run in order:
 4. If your own profile posts are missing after an older schema, run `supabase/patch_posts_read.sql` (own posts are always readable; peers stay college-scoped)
 5. For College ID / enrollment number on profiles, run `supabase/patch_enrollment_id.sql`
 6. For class announcements + notifications + Web Push, run `supabase/patch_notifications.sql` **(required — without it Notifications shows “table missing”)** (also included in fresh `schema.sql`)
+7. For custom roles (beyond CR/Professor) + role catalog + teacher permissions UI, run `supabase/patch_roles_permissions.sql`
+8. For class → semester → subjects + study-material post fields (`semester_id`, `study_unit`, `academic_year`, `media_name`) + friend-request notification types, run `supabase/patch_semesters_study.sql`
+9. For sections-per-semester, subject name uniqueness per semester, profile `semester_id`, and timetable templates, run `supabase/patch_semesters_sections_timetable.sql`
+10. For Google OAuth username/avatar hardening, run `supabase/patch_google_auth.sql`
 
 If you previously applied an older schema, re-run the full scripts (policies are dropped/recreated) or apply deltas carefully for Phase-2 tables: `stories`, `story_views`, `friend_requests`, `conversations`, `messages`, `shares`, `teacher_delegations`, and profile column `last_verification_sent_at`.
 
 **Phase-2 surfaces** (friends, DMs, stories, search, favourites, timetable, admin directory CRUD) ship in full `schema.sql`. No extra patches are required for those features if the full schema is already applied — only use `patch_*.sql` when upgrading an older project.
 
-## 3. Auth (email only)
+## 3. Auth (email + optional Google)
 
 Supabase → Authentication → Providers:
 
-- **Enable Email**
-- Leave Google / Apple / etc. **disabled**
+- **Enable Email** (always)
+- **Optional Google**: enable Google provider, add your Google OAuth Client ID/Secret in Supabase (not in Vercel env). Add redirect URL:
+  - `https://<your-project>.supabase.co/auth/v1/callback`
+  - And Site URL / redirect allow list: `http://localhost:3000`, `https://<your-vercel-domain>`, callback path `/auth/callback`
+- After enabling Google, run `supabase/patch_google_auth.sql` so new Google users get unique usernames + avatar.
 - Optional: “Confirm email” — the app does **not** gate access on verification. Users get full access immediately. Account Settings shows a reminder and a throttled “Send verification email” action (`auth.resend`).
 
 Site URL / redirect allow list:
@@ -94,7 +101,9 @@ set is_admin = true, onboarding_complete = true
 where username = 'your_username';
 ```
 
-Then use `/admin` to add colleges/classes/sections/subjects, assign/remove CR/Professor, set the popularity threshold and free-tier notice (`app_settings`: `popular_like_threshold`, `free_tier_notice`), and disable users. Teacher delegation and reports are modeled in SQL but **not granted** in the UI yet.
+That sets the **Admin** label on your profile and posts (and unlocks `/admin`). Assign CR / Professor / custom roles from the Admin panel — those labels appear next to the name on profile and posts.
+
+Then use `/admin` to add colleges/classes/sections/subjects, create custom roles, assign CR/Professor/custom roles, grant teacher permissions (manage subjects / official posts), set the popularity threshold and free-tier notice (`app_settings`: `popular_like_threshold`, `free_tier_notice`), and disable users.
 
 ## 6. Upload limits
 

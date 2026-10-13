@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoadingState } from "@/components/ui/Loading";
+import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
@@ -155,11 +156,13 @@ export default function ClassAnnouncementsPage() {
             <span className="text-xs text-[var(--muted)]">Image (optional)</span>
             {imageUrl ? (
               <div className="space-y-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imageUrl}
-                  alt="Announcement"
-                  className="max-h-48 w-full rounded-lg object-cover"
+                <UploadTile
+                  accept="image/*"
+                  onPick={(f) => void onPickImage(f)}
+                  previewUrl={imageUrl}
+                  label="Change photo"
+                  disabled={uploading}
+                  size={112}
                 />
                 <button
                   type="button"
@@ -170,11 +173,12 @@ export default function ClassAnnouncementsPage() {
                 </button>
               </div>
             ) : (
-              <input
-                type="file"
+              <UploadTile
                 accept="image/*"
+                onPick={(f) => void onPickImage(f)}
+                label="Add photo"
                 disabled={uploading}
-                onChange={(e) => void onPickImage(e.target.files?.[0])}
+                size={112}
               />
             )}
           </div>

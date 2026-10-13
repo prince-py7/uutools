@@ -14,12 +14,22 @@ export type ClassRow = {
 export type Section = {
   id: string;
   class_id: string;
+  /** Section belongs to a specific semester of the class. */
+  semester_id: string | null;
   name: string;
+};
+
+export type Semester = {
+  id: string;
+  class_id: string;
+  name: string;
+  sort_order: number;
 };
 
 export type Subject = {
   id: string;
   class_id: string;
+  semester_id: string | null;
   name: string;
 };
 
@@ -41,6 +51,8 @@ export type Profile = {
   college_id: string | null;
   class_id: string | null;
   section_id: string | null;
+  /** Current semester for class → semester → section directory. */
+  semester_id: string | null;
   /** Student college / enrollment ID (roll number), not the colleges.id UUID. */
   enrollment_id: string | null;
   socials: Socials;
@@ -50,12 +62,40 @@ export type Profile = {
   last_verification_sent_at?: string | null;
 };
 
+/** Built-in + admin-defined class roles (slug keys). */
+export type ClassRoleKey =
+  | "cr"
+  | "professor"
+  | "moderator"
+  | "coordinator"
+  | "assistant"
+  | (string & {});
+
 export type ClassRole = {
   id: string;
   user_id: string;
   class_id: string;
   section_id: string | null;
-  role: "cr" | "professor";
+  role: ClassRoleKey;
+};
+
+export type RoleDefinition = {
+  id: string;
+  college_id: string;
+  role_key: string;
+  label: string;
+  created_at?: string;
+};
+
+export type TeacherDelegation = {
+  id: string;
+  college_id: string;
+  teacher_id: string;
+  granted_by: string;
+  can_manage_subjects: boolean;
+  can_post_official: boolean;
+  is_active: boolean;
+  created_at?: string;
 };
 
 export type StudyType =
@@ -73,11 +113,18 @@ export type Post = {
   college_id: string;
   class_id: string | null;
   section_id: string | null;
+  semester_id: string | null;
   kind: PostKind;
   study_type: StudyType | null;
   subject_id: string | null;
+  /** Unit label for study material, e.g. "Unit 1". */
+  study_unit: string | null;
+  /** Academic year the material was given, e.g. "2024-25". */
+  academic_year: string | null;
   caption: string;
   media_url: string | null;
+  /** Original upload filename, e.g. "DBMS_Unit1.pdf". */
+  media_name: string | null;
   media_type: MediaType | null;
   like_count: number;
   comment_count: number;
@@ -97,6 +144,26 @@ export type Comment = {
 export type TimetableSlot = {
   id: string;
   user_id: string;
+  day_of_week: number;
+  slot: number;
+  subject_text: string;
+};
+
+export type TimetableTemplate = {
+  id: string;
+  college_id: string;
+  class_id: string;
+  semester_id: string;
+  section_id: string;
+  name: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TimetableTemplateSlot = {
+  id: string;
+  template_id: string;
   day_of_week: number;
   slot: number;
   subject_text: string;
@@ -145,9 +212,13 @@ export type Message = {
 };
 
 export type BadgeKind =
+  | "admin"
   | "developer"
   | "professor"
   | "cr"
+  | "moderator"
+  | "coordinator"
+  | "assistant"
   | "verified"
   | "unitians_popular";
 
@@ -162,11 +233,18 @@ export type FeedFilters = {
   verifiedOnly: boolean;
   classId: string | null;
   sectionId: string | null;
+  semesterId: string | null;
   subjectId: string | null;
   studyType: StudyType | null;
+  academicYear: string | null;
+  studyUnit: string | null;
 };
 
-export type NotificationType = "class_announcement" | "system";
+export type NotificationType =
+  | "class_announcement"
+  | "system"
+  | "friend_request"
+  | "friend_accepted";
 
 export type AppNotification = {
   id: string;

@@ -6,24 +6,35 @@ import { FormEvent, memo, useEffect, useMemo, useState } from "react";
 import {
   Heart,
   MessageCircle,
+  Pencil,
   Share2,
   Star,
   FileText,
   Trash2,
+  Check,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
+import { MoreMenu } from "@/components/ui/MoreMenu";
 import { useToast } from "@/components/ui/Toast";
-import { buildBadges } from "@/lib/badges";
+import { buildBadges, classSectionLabel } from "@/lib/badges";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
+import {
+  fetchClassById,
+  fetchSemesterById,
+  fetchSubjectById,
+} from "@/lib/directory";
 import {
   demoAddComment,
   demoDeletePost,
   demoRecordShare,
   demoToggleFavourite,
   demoToggleLike,
+  demoUpdatePost,
 } from "@/lib/demo-store";
 import { createClient } from "@/lib/supabase/client";
+import { studyFileDisplayName, studyTypeLabel } from "@/lib/study-meta";
 import type {
   ClassRole,
   ClassRow,
@@ -31,6 +42,8 @@ import type {
   Post,
   Profile,
   Section,
+  Semester,
+  Subject,
 } from "@/lib/types";
 
 function isOptimizableImage(url: string) {
@@ -81,9 +94,12 @@ function PostCardInner({
   );
   const [busy, setBusy] = useState(false);
   const [gone, setGone] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editCaption, setEditCaption] = useState(initialPost.caption || "");
 
   useEffect(() => {
     setPost(initialPost);
+    setEditCaption(initialPost.caption || "");
   }, [initialPost]);
 
   useEffect(() => {
@@ -154,28 +170,131 @@ function PostCardInner({
     catalog.profiles.find((p) => p.id === post.author_id) ??
     null;
 
+  const classes = classesOverride ?? catalog.classes;
+  const sections = sectionsOverride ?? catalog.sections;
+
+  const authorClassLabel = useMemo(() => {
+    if (!author) return "";
+    const cls = classes.find((c) => c.id === author.class_id);
+    const sec = sections.find((s) => s.id === author.section_id);
+    return classSectionLabel(cls, sec);
+  }, [author, classes, sections]);
+
+  const [studyClassName, setStudyClassName] = useState("");
+  const [studySemesterName, setStudySemesterName] = useState("");
+  const [studySubjectName, setStudySubjectName] = useState("");
+
+  useEffect(() => {
+    if (post.kind !== "study") {
+      setStudyClassName("");
+      setStudySemesterName("");
+      setStudySubjectName("");
+      return;
+    }
+
+    if (demoMode) {
+      const cls = catalog.classes.find((c) => c.id === post.class_id);
+      const sem = (catalog.semesters || []).find(
+        (s: Semester) => s.id === post.semester_id
+      );
+      const sub = catalog.subjects.find((s: Subject) => s.id === post.subject_id);
+      setStudyClassName(cls?.name || "");
+      setStudySemesterName(sem?.name || "");
+      setStudySubjectName(sub?.name || "");
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const [cls, sem, sub] = await Promise.all([
+        post.class_id
+          ? classes.find((c) => c.id === post.class_id) ||
+            (await fetchClassById(post.class_id))
+          : null,
+        post.semester_id ? fetchSemesterById(post.semester_id) : null,
+        post.subject_id ? fetchSubjectById(post.subject_id) : null,
+      ]);
+      if (cancelled) return;
+      setStudyClassName((cls as ClassRow | null)?.name || "");
+      setStudySemesterName(sem?.name || "");
+      setStudySubjectName(sub?.name || "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    post.kind,
+    post.class_id,
+    post.semester_id,
+    post.subject_id,
+    demoMode,
+    catalog.classes,
+    catalog.semesters,
+    catalog.subjects,
+    classes,
+  ]);
+
+  const fileLabel = studyFileDisplayName(
+    post.media_name,
+    post.media_url,
+    post.media_type
+  );
+
   const badges = useMemo(() => {
     if (!author) return [];
     return buildBadges({
       profile: author,
       roles: rolesOverride ?? catalog.roles,
-      classes: classesOverride ?? catalog.classes,
-      sections: sectionsOverride ?? catalog.sections,
+      classes,
+      sections,
       post,
       popularThreshold: thresholdOverride ?? catalog.popularThreshold,
+      roleDefinitions: catalog.roleDefinitions,
     });
   }, [
     author,
     catalog.roles,
-    catalog.classes,
-    catalog.sections,
     catalog.popularThreshold,
     rolesOverride,
-    classesOverride,
-    sectionsOverride,
+    classes,
+    sections,
     thresholdOverride,
     post,
   ]);
+
+  async function saveCaption() {
+    if (!user || busy) return;
+    if (user.id !== post.author_id) return;
+    const next = editCaption.trim();
+    setBusy(true);
+    if (demoMode) {
+      const res = demoUpdatePost(user.id, post.id, next);
+      setBusy(false);
+      if (!res.ok) {
+        toast.error(res.error || "Could not update");
+        return;
+      }
+      if (res.post) setPost(res.post);
+      else setPost((p) => ({ ...p, caption: next }));
+      setEditing(false);
+      toast.success("Post updated");
+      return;
+    }
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("posts")
+      .update({ caption: next })
+      .eq("id", post.id)
+      .eq("author_id", user.id);
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setPost((p) => ({ ...p, caption: next }));
+    setEditing(false);
+    toast.success("Post updated");
+  }
 
   async function deleteOwnPost() {
     if (!user || busy) return;
@@ -327,8 +446,10 @@ function PostCardInner({
 
   if (gone || !author) return null;
 
+  const isOwner = user?.id === post.author_id;
+
   return (
-    <article className="card overflow-hidden">
+    <article id={`post-${post.id}`} className="card overflow-hidden">
       <header className="flex items-start gap-3 p-4">
         <Link href={`/profile/${author.username}`}>
           <Avatar name={author.display_name} url={author.avatar_url} />
@@ -344,32 +465,143 @@ function PostCardInner({
             <BadgeList badges={badges} />
           </div>
           <p className="text-xs text-[var(--muted)]">
-            @{author.username} ·{" "}
+            {authorClassLabel ? `${authorClassLabel} · ` : ""}
             {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-            {post.kind === "study" && post.study_type
-              ? ` · ${post.study_type}`
-              : ""}
           </p>
         </div>
-        {user?.id === post.author_id ? (
-          <button
-            type="button"
-            className="btn btn-ghost border-0 text-[var(--muted)] hover:text-[var(--danger)]"
-            aria-label="Delete post"
-            title="Delete post"
-            disabled={busy}
-            onClick={() => void deleteOwnPost()}
-          >
-            <Trash2 size={18} />
-          </button>
+        {isOwner ? (
+          <MoreMenu
+            label="Post options"
+            items={[
+              {
+                label: "Edit caption",
+                icon: <Pencil size={16} />,
+                disabled: busy,
+                onClick: () => {
+                  setEditCaption(post.caption || "");
+                  setEditing(true);
+                },
+              },
+              {
+                label: "Delete post",
+                icon: <Trash2 size={16} />,
+                danger: true,
+                disabled: busy,
+                onClick: () => {
+                  void deleteOwnPost();
+                },
+              },
+            ]}
+          />
         ) : null}
       </header>
 
-      {post.caption && (
+      {editing ? (
+        <div className="space-y-2 px-4 pb-3">
+          <textarea
+            className="input min-h-[80px] py-2 text-[15px]"
+            value={editCaption}
+            onChange={(e) => setEditCaption(e.target.value)}
+            autoFocus
+          />
+          <div className="flex justify-end gap-1">
+            <button
+              type="button"
+              className="btn btn-ghost border-0"
+              aria-label="Cancel edit"
+              disabled={busy}
+              onClick={() => {
+                setEditing(false);
+                setEditCaption(post.caption || "");
+              }}
+            >
+              <X size={18} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost border-0 text-[var(--popular)]"
+              aria-label="Save caption"
+              disabled={busy}
+              onClick={() => void saveCaption()}
+            >
+              <Check size={18} />
+            </button>
+          </div>
+        </div>
+      ) : post.caption ? (
         <p className="whitespace-pre-wrap px-4 pb-3 text-[15px] leading-relaxed">
           {post.caption}
         </p>
-      )}
+      ) : null}
+
+      {post.kind === "study" ? (
+        <div className="mx-4 mb-3 space-y-3 rounded-xl border border-[var(--line)] bg-[#141414] p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--accent)]">
+              Study material
+            </p>
+            {post.study_type ? (
+              <span className="rounded-md bg-[#1f1f1f] px-2 py-0.5 text-[11px] text-[var(--text)]">
+                {studyTypeLabel(post.study_type)}
+              </span>
+            ) : null}
+          </div>
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm sm:grid-cols-3">
+            {studySubjectName ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Subject</dt>
+                <dd className="truncate font-medium">{studySubjectName}</dd>
+              </div>
+            ) : null}
+            {studyClassName ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Class</dt>
+                <dd className="truncate font-medium">{studyClassName}</dd>
+              </div>
+            ) : null}
+            {studySemesterName ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Semester</dt>
+                <dd className="truncate font-medium">{studySemesterName}</dd>
+              </div>
+            ) : null}
+            {post.study_unit ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Unit</dt>
+                <dd className="truncate font-medium">{post.study_unit}</dd>
+              </div>
+            ) : null}
+            {post.academic_year ? (
+              <div className="min-w-0">
+                <dt className="text-[11px] text-[var(--muted)]">Year</dt>
+                <dd className="truncate font-medium">{post.academic_year}</dd>
+              </div>
+            ) : null}
+          </dl>
+          {(post.media_type === "pdf" || post.media_url) && (
+            <div className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[#1a1a1a] p-3">
+              <FileText className="shrink-0 text-[var(--accent)]" size={20} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium" title={fileLabel}>
+                  {fileLabel}
+                </p>
+                {post.media_url ? (
+                  <a
+                    href={post.media_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-[var(--accent)] hover:underline"
+                  >
+                    Open file
+                  </a>
+                ) : (
+                  <p className="text-xs text-[var(--muted)]">No file attached</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {post.media_type === "image" && post.media_url && (
         isOptimizableImage(post.media_url) ? (
@@ -393,7 +625,7 @@ function PostCardInner({
         )
       )}
 
-      {post.media_type === "image" && !post.media_url && (
+      {post.media_type === "image" && !post.media_url && post.kind !== "study" && (
         <div className="mx-4 mb-3 flex aspect-square items-center justify-center rounded-xl bg-[#1a1a1a] text-[var(--muted)]">
           Photo
         </div>
@@ -407,11 +639,11 @@ function PostCardInner({
         />
       )}
 
-      {post.media_type === "pdf" && (
+      {post.media_type === "pdf" && post.kind !== "study" && (
         <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[#1a1a1a] p-4">
           <FileText className="text-[var(--accent)]" />
           <div className="min-w-0 flex-1">
-            <p className="font-medium">Study file / PDF</p>
+            <p className="truncate font-medium">{fileLabel}</p>
             {post.media_url ? (
               <a
                 href={post.media_url}

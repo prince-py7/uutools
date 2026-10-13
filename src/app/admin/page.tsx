@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { TimetableTemplateEditor } from "@/components/admin/TimetableTemplateEditor";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import { getDemoState, newId, saveDemoState } from "@/lib/demo-store";
@@ -11,6 +12,7 @@ import {
   fetchFreeTierNotice,
   fetchPopularThreshold,
   fetchSections,
+  fetchSemesters,
   fetchSubjects,
   listAllClassRoles,
   listCollegeProfiles,
@@ -23,9 +25,13 @@ import type {
   ClassRow,
   College,
   Profile,
+  RoleDefinition,
   Section,
+  Semester,
   Subject,
+  TeacherDelegation,
 } from "@/lib/types";
+import { roleBadgeLabel } from "@/lib/badges";
 
 export default function AdminPage() {
   const { user, ready, demoMode } = useAuth();
@@ -38,12 +44,23 @@ export default function AdminPage() {
   const [className, setClassName] = useState("");
   const [sectionName, setSectionName] = useState("");
   const [sectionClassId, setSectionClassId] = useState("");
+  const [sectionSemesterId, setSectionSemesterId] = useState("");
+  const [semesterName, setSemesterName] = useState("");
+  const [semesterClassId, setSemesterClassId] = useState("");
   const [subjectName, setSubjectName] = useState("");
   const [subjectClassId, setSubjectClassId] = useState("");
+  const [subjectSemesterId, setSubjectSemesterId] = useState("");
   const [roleUserId, setRoleUserId] = useState("");
   const [roleClassId, setRoleClassId] = useState("");
   const [roleSectionId, setRoleSectionId] = useState("");
-  const [roleType, setRoleType] = useState<"cr" | "professor">("cr");
+  const [roleType, setRoleType] = useState("cr");
+  const [newRoleKey, setNewRoleKey] = useState("");
+  const [newRoleLabel, setNewRoleLabel] = useState("");
+  const [roleDefinitions, setRoleDefinitions] = useState<RoleDefinition[]>([]);
+  const [delegations, setDelegations] = useState<TeacherDelegation[]>([]);
+  const [delegUserId, setDelegUserId] = useState("");
+  const [delegManageSubjects, setDelegManageSubjects] = useState(true);
+  const [delegPostOfficial, setDelegPostOfficial] = useState(true);
   const [collegeName, setCollegeName] = useState("");
   const [collegeSlug, setCollegeSlug] = useState("");
   const [targetCollegeId, setTargetCollegeId] = useState("");
@@ -53,6 +70,7 @@ export default function AdminPage() {
   const [colleges, setColleges] = useState<College[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [roles, setRoles] = useState<ClassRole[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -87,10 +105,29 @@ export default function AdminPage() {
       classRows.map((c) => fetchSections(c.id))
     );
     setSections(sectionLists.flat());
+    const semesterLists = await Promise.all(
+      classRows.map((c) => fetchSemesters(c.id))
+    );
+    setSemesters(semesterLists.flat());
     const subjectLists = await Promise.all(
       classRows.map((c) => fetchSubjects(c.id))
     );
     setSubjects(subjectLists.flat());
+    const supabase = createClient();
+    const [roleDefRes, delegRes] = await Promise.all([
+      supabase
+        .from("role_definitions")
+        .select("*")
+        .eq("college_id", collegeId)
+        .order("label"),
+      supabase
+        .from("teacher_delegations")
+        .select("*")
+        .eq("college_id", collegeId)
+        .order("created_at", { ascending: false }),
+    ]);
+    setRoleDefinitions((roleDefRes.data as RoleDefinition[]) || []);
+    setDelegations((delegRes.data as TeacherDelegation[]) || []);
   }, [demoMode, targetCollegeId, user?.college_id]);
 
   useEffect(() => {
@@ -103,9 +140,12 @@ export default function AdminPage() {
       setColleges(catalog.colleges);
       setClasses(catalog.classes);
       setSections(catalog.sections);
+      setSemesters(catalog.semesters || []);
       setSubjects(catalog.subjects);
       setRoles(catalog.roles);
       setProfiles(catalog.profiles);
+      setRoleDefinitions(catalog.roleDefinitions || []);
+      setDelegations(catalog.teacherDelegations || []);
     } else {
       void reloadLive();
     }
@@ -117,9 +157,35 @@ export default function AdminPage() {
   const viewColleges = demoMode ? catalog.colleges : colleges;
   const viewClasses = demoMode ? catalog.classes : classes;
   const viewSections = demoMode ? catalog.sections : sections;
+  const viewSemesters = demoMode ? catalog.semesters || [] : semesters;
   const viewSubjects = demoMode ? catalog.subjects : subjects;
+  const subjectSemesters = viewSemesters.filter(
+    (s) => s.class_id === subjectClassId
+  );
+  const sectionSemesters = viewSemesters.filter(
+    (s) => s.class_id === sectionClassId
+  );
   const viewRoles = demoMode ? catalog.roles : roles;
   const viewProfiles = demoMode ? catalog.profiles : profiles;
+  const viewRoleDefinitions = demoMode
+    ? catalog.roleDefinitions || roleDefinitions
+    : roleDefinitions;
+  const viewDelegations = demoMode
+    ? catalog.teacherDelegations || delegations
+    : delegations;
+  const builtinRoleOptions = [
+    { key: "cr", label: "CR" },
+    { key: "professor", label: "Professor" },
+    { key: "moderator", label: "Moderator" },
+    { key: "coordinator", label: "Coordinator" },
+    { key: "assistant", label: "Assistant" },
+  ];
+  const roleOptions = [
+    ...builtinRoleOptions,
+    ...viewRoleDefinitions
+      .filter((d) => !builtinRoleOptions.some((b) => b.key === d.role_key))
+      .map((d) => ({ key: d.role_key, label: d.label })),
+  ];
 
   async function saveThreshold(e: FormEvent) {
     e.preventDefault();
@@ -254,14 +320,56 @@ export default function AdminPage() {
     }
   }
 
+  async function addSemester(e: FormEvent) {
+    e.preventDefault();
+    if (!semesterClassId || !semesterName.trim()) return;
+    const name = semesterName.trim();
+    if (demoMode) {
+      const state = getDemoState();
+      state.semesters = state.semesters || [];
+      const order =
+        state.semesters.filter((s) => s.class_id === semesterClassId).length + 1;
+      state.semesters.push({
+        id: newId(),
+        class_id: semesterClassId,
+        name,
+        sort_order: order,
+      });
+      saveDemoState(state);
+      setSemesterName("");
+      flash("Semester added");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const existing = await fetchSemesters(semesterClassId);
+    const { error } = await supabase.from("semesters").insert({
+      class_id: semesterClassId,
+      name,
+      sort_order: existing.length + 1,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else {
+      setSemesterName("");
+      flash("Semester added");
+      await reloadLive();
+    }
+  }
+
   async function addSection(e: FormEvent) {
     e.preventDefault();
     if (!sectionClassId || !sectionName.trim()) return;
+    if (!sectionSemesterId) {
+      toast.error("Pick a semester — sections differ by semester");
+      return;
+    }
     if (demoMode) {
       const state = getDemoState();
       state.sections.push({
         id: newId(),
         class_id: sectionClassId,
+        semester_id: sectionSemesterId,
         name: sectionName.trim().toUpperCase(),
       });
       saveDemoState(state);
@@ -273,6 +381,7 @@ export default function AdminPage() {
     const supabase = createClient();
     const { error } = await supabase.from("sections").insert({
       class_id: sectionClassId,
+      semester_id: sectionSemesterId,
       name: sectionName.trim().toUpperCase(),
     });
     setBusy(false);
@@ -287,15 +396,21 @@ export default function AdminPage() {
   async function addSubject(e: FormEvent) {
     e.preventDefault();
     if (!subjectClassId || !subjectName.trim()) return;
+    if (!subjectSemesterId) {
+      toast.error("Pick a semester for this subject");
+      return;
+    }
     if (demoMode) {
       const state = getDemoState();
       state.subjects.push({
         id: newId(),
         class_id: subjectClassId,
+        semester_id: subjectSemesterId,
         name: subjectName.trim(),
       });
       saveDemoState(state);
       setSubjectName("");
+      setSubjectSemesterId("");
       flash("Subject added");
       return;
     }
@@ -303,6 +418,7 @@ export default function AdminPage() {
     const supabase = createClient();
     const { error } = await supabase.from("subjects").insert({
       class_id: subjectClassId,
+      semester_id: subjectSemesterId,
       name: subjectName.trim(),
     });
     setBusy(false);
@@ -314,7 +430,159 @@ export default function AdminPage() {
     }
   }
 
-  async function assignRole(e: FormEvent) {
+  
+  function slugifyRoleKey(raw: string) {
+    return raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 32);
+  }
+
+  async function createRoleDefinition(e: FormEvent) {
+    e.preventDefault();
+    const collegeId =
+      targetCollegeId || viewColleges[0]?.id || user?.college_id || "";
+    if (!collegeId) return;
+    const key = slugifyRoleKey(newRoleKey || newRoleLabel);
+    const label = newRoleLabel.trim() || roleBadgeLabel(key);
+    if (!key || !/^[a-z][a-z0-9_]{1,30}$/.test(key)) {
+      toast.error("Role key must be like cr, lab_assistant, mentor");
+      return;
+    }
+    if (demoMode) {
+      const state = getDemoState();
+      state.roleDefinitions = state.roleDefinitions || [];
+      if (state.roleDefinitions.some((d) => d.college_id === collegeId && d.role_key === key)) {
+        flash("Role already exists");
+        return;
+      }
+      state.roleDefinitions.push({
+        id: newId(),
+        college_id: collegeId,
+        role_key: key,
+        label,
+      });
+      saveDemoState(state);
+      setRoleDefinitions(state.roleDefinitions);
+      setNewRoleKey("");
+      setNewRoleLabel("");
+      flash("Role created");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("role_definitions").insert({
+      college_id: collegeId,
+      role_key: key,
+      label,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else {
+      setNewRoleKey("");
+      setNewRoleLabel("");
+      flash("Role created");
+      await reloadLive();
+    }
+  }
+
+  async function removeRoleDefinition(id: string) {
+    if (demoMode) {
+      const state = getDemoState();
+      state.roleDefinitions = (state.roleDefinitions || []).filter((d) => d.id !== id);
+      saveDemoState(state);
+      setRoleDefinitions(state.roleDefinitions);
+      flash("Role definition removed");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("role_definitions").delete().eq("id", id);
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else {
+      flash("Role definition removed");
+      await reloadLive();
+    }
+  }
+
+  async function saveDelegation(e: FormEvent) {
+    e.preventDefault();
+    if (!delegUserId) return;
+    const collegeId =
+      targetCollegeId || viewColleges[0]?.id || user?.college_id || "";
+    if (!collegeId || !user) return;
+    if (demoMode) {
+      const state = getDemoState();
+      state.teacherDelegations = state.teacherDelegations || [];
+      state.teacherDelegations = state.teacherDelegations.filter(
+        (d) => !(d.college_id === collegeId && d.teacher_id === delegUserId)
+      );
+      state.teacherDelegations.push({
+        id: newId(),
+        college_id: collegeId,
+        teacher_id: delegUserId,
+        granted_by: user.id,
+        can_manage_subjects: delegManageSubjects,
+        can_post_official: delegPostOfficial,
+        is_active: true,
+      });
+      saveDemoState(state);
+      setDelegations(state.teacherDelegations);
+      flash("Permissions saved");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    await supabase
+      .from("teacher_delegations")
+      .delete()
+      .eq("college_id", collegeId)
+      .eq("teacher_id", delegUserId);
+    const { error } = await supabase.from("teacher_delegations").insert({
+      college_id: collegeId,
+      teacher_id: delegUserId,
+      granted_by: user.id,
+      can_manage_subjects: delegManageSubjects,
+      can_post_official: delegPostOfficial,
+      is_active: true,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else {
+      flash("Permissions saved");
+      await reloadLive();
+    }
+  }
+
+  async function removeDelegation(id: string) {
+    if (demoMode) {
+      const state = getDemoState();
+      state.teacherDelegations = (state.teacherDelegations || []).filter(
+        (d) => d.id !== id
+      );
+      saveDemoState(state);
+      setDelegations(state.teacherDelegations);
+      flash("Delegation removed");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("teacher_delegations")
+      .delete()
+      .eq("id", id);
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else {
+      flash("Delegation removed");
+      await reloadLive();
+    }
+  }
+
+async function assignRole(e: FormEvent) {
     e.preventDefault();
     if (!roleUserId || !roleClassId) return;
     if (demoMode) {
@@ -503,18 +771,84 @@ export default function AdminPage() {
           </ul>
         </section>
 
+
         <section className="card space-y-3 p-5">
-          <h2 className="font-semibold">Add section</h2>
-          <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => void addSection(e)}>
+          <h2 className="font-semibold">Add semester</h2>
+          <p className="text-xs text-[var(--muted)]">
+            Attach semesters to a class, then assign subjects under a semester.
+          </p>
+          <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => void addSemester(e)}>
             <select
               className="input"
-              value={sectionClassId}
-              onChange={(e) => setSectionClassId(e.target.value)}
+              value={semesterClassId}
+              onChange={(e) => setSemesterClassId(e.target.value)}
             >
               <option value="">Class</option>
               {viewClasses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              placeholder="e.g. Semester 3"
+              value={semesterName}
+              onChange={(e) => setSemesterName(e.target.value)}
+            />
+            <button className="btn btn-primary" disabled={busy}>
+              Add semester
+            </button>
+          </form>
+          <ul className="text-sm text-[var(--muted)]">
+            {viewSemesters.map((s) => {
+              const cls = viewClasses.find((c) => c.id === s.class_id);
+              return (
+                <li key={s.id}>
+                  • {cls?.name}: {s.name}
+                </li>
+              );
+            })}
+            {!viewSemesters.length ? (
+              <li className="text-xs">No semesters yet.</li>
+            ) : null}
+          </ul>
+        </section>
+
+        <section className="card space-y-3 p-5">
+          <h2 className="font-semibold">Add section</h2>
+          <p className="text-xs text-[var(--muted)]">
+            Sections belong to a semester (Sem 1 may have A/B, Sem 2 may have
+            A/B/C — pick the semester first).
+          </p>
+          <form className="grid gap-2 sm:grid-cols-2" onSubmit={(e) => void addSection(e)}>
+            <select
+              className="input"
+              value={sectionClassId}
+              onChange={(e) => {
+                setSectionClassId(e.target.value);
+                setSectionSemesterId("");
+              }}
+              required
+            >
+              <option value="">Class</option>
+              {viewClasses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input"
+              value={sectionSemesterId}
+              onChange={(e) => setSectionSemesterId(e.target.value)}
+              disabled={!sectionClassId}
+              required
+            >
+              <option value="">Semester</option>
+              {sectionSemesters.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
                 </option>
               ))}
             </select>
@@ -523,6 +857,7 @@ export default function AdminPage() {
               placeholder="e.g. C"
               value={sectionName}
               onChange={(e) => setSectionName(e.target.value)}
+              required
             />
             <button className="btn btn-primary" disabled={busy}>
               Add section
@@ -531,22 +866,35 @@ export default function AdminPage() {
           <ul className="text-sm text-[var(--muted)]">
             {viewSections.map((s) => {
               const cls = viewClasses.find((c) => c.id === s.class_id);
+              const sem = viewSemesters.find((x) => x.id === s.semester_id);
               return (
                 <li key={s.id}>
-                  • {cls?.name} {s.name}
+                  • {cls?.name}
+                  {sem ? ` / ${sem.name}` : ""}: {s.name}
                 </li>
               );
             })}
+            {!viewSections.length ? (
+              <li className="text-xs">No sections yet.</li>
+            ) : null}
           </ul>
         </section>
 
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">Add subject</h2>
-          <form className="grid gap-2 sm:grid-cols-3" onSubmit={(e) => void addSubject(e)}>
+          <p className="text-xs text-[var(--muted)]">
+            Subjects belong under a class semester so Study Material posts can
+            filter by class → semester → subject.
+          </p>
+          <form className="grid gap-2 sm:grid-cols-2" onSubmit={(e) => void addSubject(e)}>
             <select
               className="input"
               value={subjectClassId}
-              onChange={(e) => setSubjectClassId(e.target.value)}
+              onChange={(e) => {
+                setSubjectClassId(e.target.value);
+                setSubjectSemesterId("");
+              }}
+              required
             >
               <option value="">Class</option>
               {viewClasses.map((c) => (
@@ -555,22 +903,38 @@ export default function AdminPage() {
                 </option>
               ))}
             </select>
-            <input
+            <select
               className="input"
+              value={subjectSemesterId}
+              onChange={(e) => setSubjectSemesterId(e.target.value)}
+              disabled={!subjectClassId}
+              required
+            >
+              <option value="">Semester</option>
+              {subjectSemesters.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input sm:col-span-2"
               placeholder="Subject name"
               value={subjectName}
               onChange={(e) => setSubjectName(e.target.value)}
             />
-            <button className="btn btn-primary" disabled={busy}>
+            <button className="btn btn-primary sm:col-span-2" disabled={busy}>
               Add subject
             </button>
           </form>
           <ul className="text-sm text-[var(--muted)]">
             {viewSubjects.map((s) => {
               const cls = viewClasses.find((c) => c.id === s.class_id);
+              const sem = viewSemesters.find((x) => x.id === s.semester_id);
               return (
                 <li key={s.id}>
-                  • {cls?.name}: {s.name}
+                  • {cls?.name}
+                  {sem ? ` / ${sem.name}` : ""}: {s.name}
                 </li>
               );
             })}
@@ -578,7 +942,58 @@ export default function AdminPage() {
         </section>
 
         <section className="card space-y-3 p-5">
-          <h2 className="font-semibold">Assign CR / Professor</h2>
+          <h2 className="font-semibold">Create roles</h2>
+          <p className="text-xs text-[var(--muted)]">
+            Built-in: CR, Professor, Moderator, Coordinator, Assistant. Add custom
+            roles (e.g. lab_assistant) — labels show on profile and posts.
+          </p>
+          <form
+            className="grid gap-2 sm:grid-cols-3"
+            onSubmit={(e) => void createRoleDefinition(e)}
+          >
+            <input
+              className="input"
+              placeholder="Label (e.g. Lab Assistant)"
+              value={newRoleLabel}
+              onChange={(e) => setNewRoleLabel(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="Key (optional, e.g. lab_assistant)"
+              value={newRoleKey}
+              onChange={(e) => setNewRoleKey(e.target.value)}
+            />
+            <button className="btn btn-primary" disabled={busy}>
+              Create role
+            </button>
+          </form>
+          <ul className="space-y-2 text-sm text-[var(--muted)]">
+            {viewRoleDefinitions.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center justify-between gap-2"
+              >
+                <span>
+                  • {d.label} <code className="text-xs">({d.role_key})</code>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost h-8 text-xs"
+                  disabled={busy}
+                  onClick={() => void removeRoleDefinition(d.id)}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+            {!viewRoleDefinitions.length ? (
+              <li className="text-xs">No custom roles yet.</li>
+            ) : null}
+          </ul>
+        </section>
+
+        <section className="card space-y-3 p-5">
+          <h2 className="font-semibold">Assign roles (CR / Professor / custom)</h2>
           <form
             className="grid gap-2 sm:grid-cols-2"
             onSubmit={(e) => void assignRole(e)}
@@ -598,12 +1013,13 @@ export default function AdminPage() {
             <select
               className="input"
               value={roleType}
-              onChange={(e) =>
-                setRoleType(e.target.value as "cr" | "professor")
-              }
+              onChange={(e) => setRoleType(e.target.value)}
             >
-              <option value="cr">CR</option>
-              <option value="professor">Professor</option>
+              {roleOptions.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
             </select>
             <select
               className="input"
@@ -648,7 +1064,7 @@ export default function AdminPage() {
                 >
                   <span>
                     • {p?.display_name} — {c?.name}
-                    {s ? ` ${s.name}` : ""} — {r.role.toUpperCase()}
+                    {s ? ` ${s.name}` : ""} — {roleBadgeLabel(r.role, viewRoleDefinitions)}
                   </span>
                   <button
                     type="button"
@@ -664,17 +1080,88 @@ export default function AdminPage() {
           </ul>
         </section>
 
-        <section className="card space-y-2 p-5 opacity-70">
-          <h2 className="font-semibold">Teacher delegation (planned)</h2>
-          <p className="text-sm text-[var(--muted)]">
-            Schema includes <code>teacher_delegations</code> for later. Not
-            granted in this release — only developer admins manage
-            colleges/classes/roles.
+        <section className="card space-y-3 p-5">
+          <h2 className="font-semibold">Teacher / staff permissions</h2>
+          <p className="text-xs text-[var(--muted)]">
+            Grant subject-management or official-post permissions to professors /
+            staff for this college.
           </p>
-          <button type="button" className="btn btn-ghost" disabled>
-            Delegate teacher tools — coming later
-          </button>
+          <form
+            className="grid gap-2 sm:grid-cols-2"
+            onSubmit={(e) => void saveDelegation(e)}
+          >
+            <select
+              className="input sm:col-span-2"
+              value={delegUserId}
+              onChange={(e) => setDelegUserId(e.target.value)}
+            >
+              <option value="">User</option>
+              {viewProfiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name} (@{p.username})
+                </option>
+              ))}
+            </select>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={delegManageSubjects}
+                onChange={(e) => setDelegManageSubjects(e.target.checked)}
+              />
+              Can manage subjects
+            </label>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={delegPostOfficial}
+                onChange={(e) => setDelegPostOfficial(e.target.checked)}
+              />
+              Can post official / verified
+            </label>
+            <button className="btn btn-primary sm:col-span-2" disabled={busy}>
+              Save permissions
+            </button>
+          </form>
+          <ul className="space-y-2 text-sm text-[var(--muted)]">
+            {viewDelegations.map((d) => {
+              const p = viewProfiles.find((x) => x.id === d.teacher_id);
+              return (
+                <li
+                  key={d.id}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span>
+                    • {p?.display_name || d.teacher_id}
+                    {d.can_manage_subjects ? " · subjects" : ""}
+                    {d.can_post_official ? " · official posts" : ""}
+                    {d.is_active ? "" : " · inactive"}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost h-8 text-xs"
+                    disabled={busy}
+                    onClick={() => void removeDelegation(d.id)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
+            {!viewDelegations.length ? (
+              <li className="text-xs">No delegations yet.</li>
+            ) : null}
+          </ul>
         </section>
+
+        <TimetableTemplateEditor
+          colleges={viewColleges}
+          classes={viewClasses}
+          semesters={viewSemesters}
+          sections={viewSections}
+          defaultCollegeId={
+            targetCollegeId || user?.college_id || viewColleges[0]?.id || ""
+          }
+        />
 
         <section className="card space-y-3 p-5">
           <h2 className="font-semibold">Users</h2>
@@ -686,7 +1173,7 @@ export default function AdminPage() {
               >
                 <span>
                   {p.display_name} (@{p.username})
-                  {p.is_admin ? " · admin" : ""}
+                  {p.is_admin ? " · Admin" : ""}
                   {p.is_disabled ? " · disabled" : ""}
                 </span>
                 {!p.is_admin && (

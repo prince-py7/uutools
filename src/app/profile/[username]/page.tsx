@@ -1,16 +1,12 @@
 "use client";
 
-import {
-  LoadingInline,
-  LoadingState,
-  SkeletonRows,
-  Spinner,
-} from "@/components/ui/Loading";
+import { LoadingInline, LoadingState, SkeletonRows, Spinner } from "@/components/ui/Loading";
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Settings } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Avatar, BadgeList } from "@/components/ui/Badge";
 import { SendFriendButton } from "@/components/social/FriendRequests";
@@ -20,6 +16,7 @@ import { isSupabaseConfigured } from "@/lib/config";
 import { FEED_PAGE_SIZE, fetchProfilePosts, type FeedItem } from "@/lib/feed";
 import type {
   ClassRole,
+  RoleDefinition,
   ClassRow,
   College,
   Post,
@@ -41,6 +38,7 @@ type ProfileHeader = {
   classRow: ClassRow | null;
   section: Section | null;
   roles: ClassRole[];
+  roleDefinitions: RoleDefinition[];
   popularThreshold: number;
 };
 
@@ -69,7 +67,7 @@ export default function ProfilePage() {
     if (!user) router.replace("/login");
   }, [ready, user, router]);
 
-  // Phase 1: profile header only (fast first paint)
+  // ─── Phase 1: profile header only ──────────────────────────────────────────
   useEffect(() => {
     if (!ready || !user || !username) return;
 
@@ -112,6 +110,7 @@ export default function ProfilePage() {
           section:
             catalog.sections.find((s) => s.id === profile.section_id) || null,
           roles: catalog.roles.filter((r) => r.user_id === profile.id),
+          roleDefinitions: catalog.roleDefinitions || [],
           popularThreshold: catalog.popularThreshold,
         });
         setHeaderLoading(false);
@@ -164,7 +163,7 @@ export default function ProfilePage() {
           return;
         }
 
-        const [collegeRes, classRes, sectionRes, rolesRes, settingsRes] =
+        const [collegeRes, classRes, sectionRes, rolesRes, roleDefsRes, settingsRes] =
           await Promise.all([
             p.college_id
               ? supabase
@@ -188,6 +187,12 @@ export default function ProfilePage() {
                   .maybeSingle()
               : Promise.resolve({ data: null }),
             supabase.from("class_roles").select("*").eq("user_id", p.id),
+            p.college_id
+              ? supabase
+                  .from("role_definitions")
+                  .select("*")
+                  .eq("college_id", p.college_id)
+              : Promise.resolve({ data: [] }),
             supabase
               .from("app_settings")
               .select("value")
@@ -213,9 +218,8 @@ export default function ProfilePage() {
           college: (collegeRes.data as College) || null,
           classRow: (classRes.data as ClassRow) || null,
           section: (sectionRes.data as Section) || null,
-          roles: ((rolesRes.data as ClassRole[]) || []).filter(
-            (r) => r.role === "cr" || r.role === "professor"
-          ),
+          roles: (rolesRes.data as ClassRole[]) || [],
+          roleDefinitions: (roleDefsRes.data as RoleDefinition[]) || [],
           popularThreshold,
         });
       } catch (e) {
@@ -234,7 +238,7 @@ export default function ProfilePage() {
     };
   }, [ready, user, username, demoMode, catalog]);
 
-  // Phase 2: posts after header
+  // ─── Phase 2: posts after header ───────────────────────────────────────────
   const loadPosts = useCallback(
     async (mode: "reset" | "more") => {
       if (!header?.profile || !user) return;
@@ -281,7 +285,9 @@ export default function ProfilePage() {
           const seen = new Set(prev.map((p) => p.id));
           return [
             ...prev,
-            ...res.items.map((i) => i.post).filter((p) => !seen.has(p.id)),
+            ...res.items
+              .map((i) => i.post)
+              .filter((p) => !seen.has(p.id)),
           ];
         });
       }
@@ -339,6 +345,7 @@ export default function ProfilePage() {
       classes: header.classRow ? [header.classRow] : [],
       sections: header.section ? [header.section] : [],
       popularThreshold: header.popularThreshold,
+      roleDefinitions: header.roleDefinitions,
     });
   }, [header]);
 
@@ -385,6 +392,16 @@ export default function ProfilePage() {
                 <h1 className="text-xl font-bold">
                   {profile.display_name || profile.username}
                 </h1>
+                {isSelf ? (
+                  <Link
+                    href="/profile/settings"
+                    className="icon-btn text-[var(--muted)] hover:text-white"
+                    aria-label="Settings"
+                    title="Settings"
+                  >
+                    <Settings size={18} />
+                  </Link>
+                ) : null}
                 <BadgeList badges={badges} />
               </div>
               <p className="text-[var(--muted)]">@{profile.username}</p>
@@ -466,15 +483,7 @@ export default function ProfilePage() {
                     </Link>
                   </>
                 ) : (
-                  <>
-                    <SendFriendButton targetUserId={profile.id} />
-                    <Link
-                      href={`/messages/${profile.username}`}
-                      className="btn btn-ghost inline-flex"
-                    >
-                      Message
-                    </Link>
-                  </>
+                  <SendFriendButton targetUserId={profile.id} />
                 )}
               </div>
             </div>

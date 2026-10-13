@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { getDemoState, saveDemoState } from "@/lib/demo-store";
 import { isSupabaseConfigured } from "@/lib/config";
-import { insertDemoNotifications } from "@/lib/notifications";
+import { insertDemoNotifications, notifyNotificationsUpdated } from "@/lib/notifications";
 import type {
   AppNotification,
   ClassAnnouncement,
@@ -11,10 +11,12 @@ import type {
 
 export function canSendClassAnnouncements(
   user: Profile | null,
-  roles: ClassRole[]
+  roles: ClassRole[],
+  canPostOfficialDelegated = false
 ): boolean {
   if (!user) return false;
   if (user.is_admin) return true;
+  if (canPostOfficialDelegated) return true;
   return roles.some(
     (r) =>
       r.user_id === user.id &&
@@ -154,6 +156,7 @@ export async function createClassAnnouncement(opts: {
         ref_id: saved.id,
       }))
     );
+    notifyNotificationsUpdated();
   }
 
   try {

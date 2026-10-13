@@ -134,7 +134,8 @@ select {
   border: 1px solid transparent;
 }
 
-.badge-developer {
+.badge-developer,
+.badge-admin {
   background: rgba(245, 166, 35, 0.12);
   color: var(--developer);
   border-color: rgba(245, 166, 35, 0.25);
@@ -150,6 +151,14 @@ select {
   background: rgba(201, 182, 255, 0.1);
   color: var(--professor);
   border-color: rgba(201, 182, 255, 0.25);
+}
+
+.badge-moderator,
+.badge-coordinator,
+.badge-assistant {
+  background: rgba(120, 200, 255, 0.1);
+  color: #7ec8ff;
+  border-color: rgba(120, 200, 255, 0.28);
 }
 
 .badge-verified {
@@ -313,3 +322,56 @@ select {
 
 /* Timetable grid: rotate on narrow phones so the full week fits */
 
+
+/* Brand title RGB glow (from legacy uutools footer) */
+@keyframes frozen-rgb {
+  0%,
+  100% {
+    -webkit-text-stroke-color: #7ad7ff;
+    text-shadow:
+      0 0 2px rgba(255, 255, 255, 0.95),
+      0 0 8px #7ad7ff,
+      0 0 16px rgba(122, 215, 255, 0.7),
+      1px 0 6px rgba(122, 215, 255, 0.9),
+      -1px 0 6px rgba(122, 215, 255, 0.9);
+  }
+  33% {
+    -webkit-text-stroke-color: #ff7ad4;
+    text-shadow:
+      0 0 2px rgba(255, 255, 255, 0.95),
+      0 0 8px #ff7ad4,
+      0 0 16px rgba(255, 122, 212, 0.7),
+      1px 0 6px rgba(255, 122, 212, 0.9),
+      -1px 0 6px rgba(255, 122, 212, 0.9);
+  }
+  66% {
+    -webkit-text-stroke-color: #ffe066;
+    text-shadow:
+      0 0 2px rgba(255, 255, 255, 0.95),
+      0 0 8px #ffe066,
+      0 0 16px rgba(255, 224, 102, 0.7),
+      1px 0 6px rgba(255, 224, 102, 0.9),
+      -1px 0 6px rgba(255, 224, 102, 0.9);
+  }
+}
+
+.brand-glow {
+  color: #f7fdff;
+  -webkit-text-stroke: 0.5px #7ad7ff;
+  animation: frozen-rgb 7s ease-in-out infinite;
+}
+
+.post-focus-ring {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  animation: post-pulse 1.6s ease-out 2;
+}
+
+@keyframes post-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 149, 246, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(0, 149, 246, 0);
+  }
+}

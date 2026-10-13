@@ -15,7 +15,7 @@ export async function uploadToSupabase(
   kind: UploadKind,
   userId: string
 ): Promise<
-  | { url: string; mediaType: "image" | "pdf" | "video" | "audio" }
+  | { url: string; mediaType: "image" | "pdf" | "video" | "audio"; fileName: string }
   | { error: string }
 > {
   const prepared = await prepareUploadFile(file, kind);
@@ -30,7 +30,13 @@ export async function uploadToSupabase(
   if (!ownerId) return { error: "Not signed in — cannot upload" };
 
   const ext = prepared.file.name.split(".").pop() || "bin";
-  const path = `${ownerId}/${Date.now()}.${ext}`;
+  const safeBase = prepared.file.name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .slice(0, 60)
+    .replace(/^_|_$/g, "");
+  const path = `${ownerId}/${Date.now()}_${safeBase || "file"}.${ext}`;
   const { error } = await supabase.storage
     .from(BUCKET[kind])
     .upload(path, prepared.file, {
@@ -45,5 +51,9 @@ export async function uploadToSupabase(
     return { error: `${error.message}${hint}` };
   }
   const { data } = supabase.storage.from(BUCKET[kind]).getPublicUrl(path);
-  return { url: data.publicUrl, mediaType: prepared.mediaType };
+  return {
+    url: data.publicUrl,
+    mediaType: prepared.mediaType,
+    fileName: prepared.file.name,
+  };
 }

@@ -54,7 +54,7 @@ function HomePageInner() {
 
   const [studyOnly, setStudyOnly] = useState(false);
   const [classOnly, setClassOnly] = useState(false);
-  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [classId, setClassId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -204,16 +204,18 @@ function HomePageInner() {
           const seen = new Set(prev.map((i) => i.post.id));
           const appended = res.items.filter((i) => !seen.has(i.post.id));
           const merged = [...prev, ...appended];
-          const authorIds = [...new Set(merged.map((i) => i.author.id))];
+          const authorIds = [
+            ...new Set(merged.map((i) => i.author.id)),
+          ];
           void fetchClassRolesForUsers(authorIds).then(setRoles);
           return merged;
         });
-        setLoadingMore(false);
       }
 
       setCursor(res.nextCursor);
       setHasMore(res.hasMore);
-      if (mode === "more") setLoadingMore(false);
+      setLoadingFeed(false);
+      setLoadingMore(false);
     },
     [
       user,
@@ -231,12 +233,14 @@ function HomePageInner() {
     ]
   );
 
+  // Reset feed when filters / tick change
   useEffect(() => {
     if (!ready || !user || demoMode) return;
     void loadLiveFeed("reset");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user, demoMode, filterKey, feedTick]);
 
+  // Reset demo pagination when filters change
   useEffect(() => {
     setDemoVisible(FEED_PAGE_SIZE);
   }, [filterKey, feedTick]);
@@ -350,9 +354,10 @@ function HomePageInner() {
     ));
   }
 
-  const showEmpty = demoMode
-    ? demoPosts.length === 0
-    : !loadingFeed && liveItems.length === 0;
+  const showEmpty =
+    demoMode
+      ? demoPosts.length === 0
+      : !loadingFeed && liveItems.length === 0;
 
   return (
     <AppShell>
