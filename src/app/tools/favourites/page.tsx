@@ -106,7 +106,7 @@ export default function FavouritesPage() {
       <div className="mx-auto max-w-xl space-y-4 px-3 py-6 md:px-0">
         <h1 className="text-2xl font-bold">Favourites</h1>
         <p className="text-sm text-[var(--muted)]">
-          Starred PDFs / units saved for later
+          Posts you starred
         </p>
         <div className="space-y-4">
           {loading && (
@@ -129,7 +129,7 @@ export default function FavouritesPage() {
             ))}
           {!loading && items.length === 0 && (
             <div className="card p-8 text-center text-[var(--muted)]">
-              No favourites yet — tap the star on any post.
+              No favourites yet. Tap the star on a post.
             </div>
           )}
         </div>

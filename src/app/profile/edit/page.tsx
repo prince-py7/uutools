@@ -247,13 +247,13 @@ export default function EditProfilePage() {
 
           <div>
             <label className="mb-1.5 block text-sm text-[var(--muted)]">
-              College ID / UUID / Enrollment no.
+              College ID
             </label>
             <input
               className="input"
               value={enrollmentId}
               onChange={(e) => setEnrollmentId(e.target.value)}
-              placeholder="e.g. university UUID / roll no."
+              placeholder="UUID or roll number"
             />
             {uuCollege ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -264,8 +264,8 @@ export default function EditProfilePage() {
                   onClick={() => void importUniversityPhoto()}
                 >
                   {uuPhotoBusy
-                    ? "Fetching photo…"
-                    : "Import photo from university"}
+                    ? "Fetching…"
+                    : "Import university photo"}
                 </button>
                 {uuPhotoNote ? (
                   <span className="text-xs text-[var(--popular)]">
@@ -273,7 +273,7 @@ export default function EditProfilePage() {
                   </span>
                 ) : (
                   <span className="text-xs text-[var(--muted)]">
-                    Preview only until you save.
+                    Preview until you save.
                   </span>
                 )}
               </div>

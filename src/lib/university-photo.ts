@@ -28,7 +28,7 @@ export async function fetchUniversityPhotoFile(
   uuid: string
 ): Promise<{ file: File } | { error: string }> {
   const id = uuid.trim();
-  if (!id) return { error: "Enter your College ID / UUID first" };
+  if (!id) return { error: "Enter your College ID first" };
 
   const url = universityPhotoUrl(id);
   try {

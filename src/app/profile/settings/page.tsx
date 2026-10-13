@@ -191,7 +191,7 @@ export default function ProfileSettingsPage() {
           <h2 className="text-sm font-semibold">Change password</h2>
           {!user.email_verified ? (
             <p className="text-xs text-[var(--muted)]">
-              Verify your email first, then you can change your password.
+              Verify your email first.
             </p>
           ) : (
             <form className="space-y-2" onSubmit={(e) => void onChangePassword(e)}>
@@ -230,10 +230,10 @@ export default function ProfileSettingsPage() {
         <section className="card space-y-3 p-5">
           <h2 className="text-sm font-semibold">Phone alerts</h2>
           <p className="text-xs text-[var(--muted)]">
-            Class announcements and important updates on this device.
+            Announcements and updates on this device.
           </p>
           <label className="flex items-center justify-between gap-3 text-sm">
-            <span>Enable phone alerts</span>
+            <span>Phone alerts</span>
             <input
               type="checkbox"
               className="h-4 w-4"
@@ -250,30 +250,14 @@ export default function ProfileSettingsPage() {
         {user.is_admin ? (
           <section className="card space-y-2 p-5">
             <h2 className="text-sm font-semibold">Admin</h2>
-            <p className="text-xs text-[var(--muted)]">
-              Admin panel is at{" "}
-              <Link href="/admin" className="text-[var(--accent)]">
-                /admin
-              </Link>
-              . It appears in the side menu when your profile has{" "}
-              <code className="text-[var(--text)]">is_admin</code> set.
-            </p>
-            <p className="text-xs text-[var(--muted)]">
-              To become admin, run in Supabase SQL:{" "}
-              <code className="block break-all rounded bg-[#141414] p-2 text-[11px] text-[var(--text)]">
-                {`update profiles set is_admin = true where username = 'yourname';`}
-              </code>{" "}
-              then open{" "}
-              <Link href="/admin" className="text-[var(--accent)]">
-                /admin
-              </Link>
-              .
-            </p>
+            <Link href="/admin" className="btn btn-ghost w-full text-sm">
+              Open /admin
+            </Link>
           </section>
         ) : null}
 
         <p className="px-1 text-sm text-[var(--muted)]">
-          Profile photo, bio, and campus fields:{" "}
+          Photo, bio, campus:{" "}
           <Link href="/profile/edit" className="text-[var(--accent)]">
             Edit profile
           </Link>

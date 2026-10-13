@@ -129,7 +129,7 @@ export default function SearchPage() {
         <h1 className="text-2xl font-bold">Search</h1>
         <input
           className="input"
-          placeholder="Search username or name"
+          placeholder="Username or name"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />

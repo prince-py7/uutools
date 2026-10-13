@@ -81,10 +81,10 @@ function ForgotPasswordForm() {
             <h1 className="mt-4 text-xl font-semibold">Reset password</h1>
             <p className="mt-2 text-sm text-[var(--muted)]">
               {step === "request"
-                ? "We email a 6-digit OTP. Enter it next. If the mail only has a link, click it — it opens this page to set a new password (not a Vercel login)."
+                ? "We’ll email a reset code."
                 : updateMode
-                  ? "You are signed in via the email link. Choose a new password (OTP not needed)."
-                  : "Enter the OTP from email and choose a new password."}
+                  ? "Set a new password."
+                  : "Enter the code and a new password."}
             </p>
           </div>
 

@@ -23,6 +23,12 @@ In Supabase → SQL Editor, run in order:
 9. For sections-per-semester, subject name uniqueness per semester, profile `semester_id`, and timetable templates, run `supabase/patch_semesters_sections_timetable.sql`
 10. For Google OAuth username/avatar hardening, run `supabase/patch_google_auth.sql`
 
+**If upload fails with** `Could not find the 'media_name' column`: run `supabase/patch_media_name.sql` (or the one-liner below), wait ~10s, retry. The app also retries without that column so posts still go through after deploy.
+
+```sql
+alter table public.posts add column if not exists media_name text;
+```
+
 If you previously applied an older schema, re-run the full scripts (policies are dropped/recreated) or apply deltas carefully for Phase-2 tables: `stories`, `story_views`, `friend_requests`, `conversations`, `messages`, `shares`, `teacher_delegations`, and profile column `last_verification_sent_at`.
 
 **Phase-2 surfaces** (friends, DMs, stories, search, favourites, timetable, admin directory CRUD) ship in full `schema.sql`. No extra patches are required for those features if the full schema is already applied — only use `patch_*.sql` when upgrading an older project.

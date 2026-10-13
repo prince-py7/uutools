@@ -423,20 +423,19 @@ export function projectAttendance(opts: {
 
   let message = "";
   if (held === 0) {
-    message =
-      "Enter lectures held and attended to see your %. Timetable fills the rest.";
+    message = "Enter lectures held and attended.";
   } else if (currentPct >= targetPct) {
-    message = `You are at ${currentPct.toFixed(1)}% — above the ${targetPct}% target.`;
+    message = `${currentPct.toFixed(1)}% · above ${targetPct}% target`;
   } else if (hasEndDate && finalPctIfAttendAll != null) {
     if (finalPctIfAttendAll >= targetPct) {
-      message = `Attend every remaining class till ${formatDisplayDate(opts.prefs.semesterEnd)} → finish ~${finalPctIfAttendAll.toFixed(1)}%.`;
+      message = `Full attendance till ${formatDisplayDate(opts.prefs.semesterEnd)} → ~${finalPctIfAttendAll.toFixed(1)}%`;
     } else {
-      message = `Even full attendance till ${formatDisplayDate(opts.prefs.semesterEnd)} → ~${finalPctIfAttendAll.toFixed(1)}% (below ${targetPct}%).`;
+      message = `Even full attendance → ~${finalPctIfAttendAll.toFixed(1)}% (below ${targetPct}%)`;
     }
   } else if (expectedTargetDate) {
-    message = `Attend every lecture until ${formatDisplayDate(expectedTargetDate)} to reach ${targetPct}%.`;
+    message = `Attend until ${formatDisplayDate(expectedTargetDate)} to hit ${targetPct}%`;
   } else {
-    message = `Need ${Number.isFinite(lecturesNeededForTarget) ? lecturesNeededForTarget : "∞"} more lectures for ${targetPct}%.`;
+    message = `Need ${Number.isFinite(lecturesNeededForTarget) ? lecturesNeededForTarget : "∞"} more lectures for ${targetPct}%`;
   }
 
   return {

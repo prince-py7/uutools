@@ -115,8 +115,8 @@ export default function ClassAnnouncementsPage() {
           <h1 className="text-2xl font-bold">Class announcements</h1>
           <div className="card space-y-3 p-5">
             <p className="text-sm text-[var(--muted)]">
-              Only Class Representatives and Professors can send announcements.
-              Ask an admin to assign your role for {classLabel}.
+              Only CR or Professor can send. Ask an admin for a role in{" "}
+              {classLabel}.
             </p>
             <Link href="/tools" className="btn btn-ghost inline-flex">
               Back to tools
@@ -133,7 +133,7 @@ export default function ClassAnnouncementsPage() {
         <div>
           <h1 className="text-2xl font-bold">Class announcements</h1>
           <p className="text-sm text-[var(--muted)]">
-            Send a message or photo to {classLabel}
+            Message {classLabel}
           </p>
         </div>
 
@@ -145,7 +145,7 @@ export default function ClassAnnouncementsPage() {
             <span className="text-xs text-[var(--muted)]">Message</span>
             <textarea
               className="input min-h-[120px] py-2"
-              placeholder="Exam hall change, holiday notice…"
+              placeholder="Hall change, holiday…"
               value={body}
               maxLength={2000}
               onChange={(e) => setBody(e.target.value)}
@@ -153,7 +153,7 @@ export default function ClassAnnouncementsPage() {
           </label>
 
           <div className="space-y-2">
-            <span className="text-xs text-[var(--muted)]">Image (optional)</span>
+            <span className="text-xs text-[var(--muted)]">Photo</span>
             {imageUrl ? (
               <div className="space-y-2">
                 <UploadTile

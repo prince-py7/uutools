@@ -170,7 +170,7 @@ export default function TimetablePage() {
       );
       setDraft(slotsToTemplateGrid(rows));
       setEditing(true);
-      toast.success("Template loaded — edit then save");
+      toast.success("Template loaded. Edit, then save.");
       return;
     }
     const res = await fetchTemplateSlots(templateId);
@@ -180,7 +180,7 @@ export default function TimetablePage() {
     }
     setDraft(slotsToTemplateGrid(res.slots));
     setEditing(true);
-    toast.success("Template loaded — edit then save");
+    toast.success("Template loaded. Edit, then save.");
   }
 
   async function saveAll() {
@@ -238,7 +238,7 @@ export default function TimetablePage() {
           <div>
             <h1 className="text-2xl font-bold">Timetable</h1>
             <p className="text-sm text-[var(--muted)]">
-              Monday–Friday · 7 slots · Library / Lunch = no class
+              Mon–Fri · 7 slots
             </p>
           </div>
           <div className="relative" ref={menuRef}>

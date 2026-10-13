@@ -114,7 +114,7 @@ export function StudyFiltersBar({
             checked={studyOnly}
             onChange={(e) => setStudyOnly(e.target.checked)}
           />
-          Study Only
+          Study
         </label>
         <label className="check-row">
           <input
@@ -122,7 +122,7 @@ export function StudyFiltersBar({
             checked={classOnly}
             onChange={(e) => setClassOnly(e.target.checked)}
           />
-          Class Only
+          My class
         </label>
       </div>
 
@@ -134,8 +134,7 @@ export function StudyFiltersBar({
               checked={verifiedOnly}
               onChange={(e) => setVerifiedOnly(e.target.checked)}
             />
-            Verified only
-            <span className="text-xs text-[var(--muted)]">(optional)</span>
+            Verified
           </label>
           <select
             className="input"
@@ -184,10 +183,10 @@ export function StudyFiltersBar({
             value={studyType}
             onChange={(e) => setStudyType(e.target.value)}
           >
-            <option value="">All study types</option>
-            <option value="unit">Units / PDFs</option>
-            <option value="assignment">Assignments</option>
-            <option value="practical">Practicals</option>
+            <option value="">All types</option>
+            <option value="unit">Unit / Notes</option>
+            <option value="assignment">Assignment</option>
+            <option value="practical">Practical</option>
             <option value="whiteboard">Whiteboard</option>
           </select>
         </div>
