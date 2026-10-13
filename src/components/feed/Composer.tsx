@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useDemoCatalog } from "@/lib/auth-context";
 import {
   demoCreatePost,
@@ -11,6 +11,14 @@ import {
 import { notifyFeedUpdated } from "@/lib/feed";
 import { createClient } from "@/lib/supabase/client";
 import { uploadToSupabase } from "@/lib/supabase/upload";
+import { prepareUploadFile } from "@/lib/uploads";
+import {
+  loadComposerStudyPrefs,
+  loadRecentSubjects,
+  pushRecentSubject,
+  saveComposerStudyPrefs,
+  type RecentSubject,
+} from "@/lib/study-prefs";
 import { UploadTile } from "@/components/ui/UploadTile";
 import { useToast } from "@/components/ui/Toast";
 import type {
@@ -21,6 +29,11 @@ import type {
   StudyType,
   Subject,
 } from "@/lib/types";
+
+type PreparedMedia = {
+  file: File;
+  mediaType: "image" | "pdf" | "video" | "audio";
+};
 
 export function Composer({ onPosted }: { onPosted?: () => void }) {
   const { user, demoMode } = useAuth();
@@ -35,13 +48,34 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
   const [studyUnit, setStudyUnit] = useState("");
   const [academicYear, setAcademicYear] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [prepared, setPrepared] = useState<PreparedMedia | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isOfficialRole, setIsOfficialRole] = useState(false);
+  const [recentSubjects, setRecentSubjects] = useState<RecentSubject[]>([]);
+  const prefsHydrated = useRef(false);
+  const prepareGen = useRef(0);
+
+  // Remember last study fields + recent subjects
+  useEffect(() => {
+    if (prefsHydrated.current) return;
+    prefsHydrated.current = true;
+    const prefs = loadComposerStudyPrefs();
+    if (prefs.classId) setStudyClassId(prefs.classId);
+    if (prefs.semesterId) setStudySemesterId(prefs.semesterId);
+    if (prefs.subjectId) setSubjectId(prefs.subjectId);
+    if (prefs.studyType) setStudyType(prefs.studyType as StudyType);
+    if (prefs.academicYear) setAcademicYear(prefs.academicYear);
+    if (prefs.studyUnit) setStudyUnit(prefs.studyUnit);
+    setRecentSubjects(loadRecentSubjects());
+  }, []);
 
   useEffect(() => {
     if (!file || !file.type.startsWith("image/")) {
@@ -121,7 +155,14 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [user, demoMode, catalog.classes, catalog.colleges, catalog.roles, catalog.teacherDelegations]);
+  }, [
+    user,
+    demoMode,
+    catalog.classes,
+    catalog.colleges,
+    catalog.roles,
+    catalog.teacherDelegations,
+  ]);
 
   useEffect(() => {
     if (!studyClassId) {
@@ -171,7 +212,13 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [studyClassId, studySemesterId, demoMode, catalog.semesters, catalog.subjects]);
+  }, [
+    studyClassId,
+    studySemesterId,
+    demoMode,
+    catalog.semesters,
+    catalog.subjects,
+  ]);
 
   const subjectOptions = useMemo(() => subjects, [subjects]);
   const yearOptions = useMemo(() => {
@@ -184,11 +231,63 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
     return opts;
   }, []);
 
+  const recentForClass = useMemo(() => {
+    return recentSubjects.filter((r) => {
+      if (studyClassId && r.classId && r.classId !== studyClassId) return false;
+      if (studySemesterId && r.semesterId && r.semesterId !== studySemesterId)
+        return false;
+      return true;
+    });
+  }, [recentSubjects, studyClassId, studySemesterId]);
+
+  const onPickFile = useCallback(
+    async (picked: File | undefined) => {
+      const gen = ++prepareGen.current;
+      setError("");
+      setPrepared(null);
+      if (!picked) {
+        setFile(null);
+        setPreparing(false);
+        return;
+      }
+      setFile(picked);
+      setPreparing(true);
+      const uploadKind = kind === "study" ? "study-file" : "post-image";
+      const res = await prepareUploadFile(picked, uploadKind);
+      if (gen !== prepareGen.current) return;
+      setPreparing(false);
+      if ("error" in res) {
+        setError(res.error);
+        setFile(null);
+        toast.error(res.error);
+        return;
+      }
+      setPrepared({ file: res.file, mediaType: res.mediaType });
+      setFile(res.file);
+      if (res.file.size < picked.size && res.mediaType === "image") {
+        const from = (picked.size / (1024 * 1024)).toFixed(1);
+        const to = (res.file.size / (1024 * 1024)).toFixed(1);
+        toast.success(`Compressed ${from} MB → ${to} MB`);
+      }
+    },
+    [kind, toast]
+  );
+
+  // Re-validate when switching Campus ↔ Study
+  useEffect(() => {
+    if (!file) {
+      setPrepared(null);
+      return;
+    }
+    void onPickFile(file);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
+
   if (!user) return null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!user) return;
+    if (!user || busy || preparing) return;
     if (!caption.trim()) {
       setError("Write a caption before sharing.");
       return;
@@ -218,13 +317,15 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
         setError("Select the academic year this material was given.");
         return;
       }
-      if (!file) {
+      if (!file && !prepared) {
         setError("Attach a PDF or image for study material.");
         return;
       }
     }
     setBusy(true);
     setError("");
+    setProgress(8);
+    setProgressLabel("Preparing…");
 
     let media_url: string | null = null;
     let media_type: MediaType = kind === "study" ? "pdf" : "none";
@@ -232,17 +333,23 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
     const uploadKind = kind === "study" ? "study-file" : "post-image";
 
     try {
-      if (file) {
-        media_name = file.name;
+      const active = prepared?.file || file;
+      if (active) {
+        media_name = active.name;
+        setProgress(25);
+        setProgressLabel(
+          prepared ? "Uploading…" : "Compressing & uploading…"
+        );
         if (demoMode) {
-          const res = await demoFileToDataUrl(file, uploadKind);
+          const res = await demoFileToDataUrl(active, uploadKind);
           if ("error" in res) {
             setError(res.error);
             setBusy(false);
+            setProgress(0);
             return;
           }
           media_url = res.url;
-          media_name = res.fileName || file.name;
+          media_name = res.fileName || active.name;
           media_type =
             res.mediaType === "pdf"
               ? "pdf"
@@ -250,15 +357,19 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
                 ? "video"
                 : "image";
         } else {
-          const res = await uploadToSupabase(file, uploadKind, user.id);
+          const res = await uploadToSupabase(active, uploadKind, user.id, {
+            alreadyPrepared: Boolean(prepared),
+            mediaType: prepared?.mediaType,
+          });
           if ("error" in res) {
             setError(res.error);
             toast.error(res.error);
             setBusy(false);
+            setProgress(0);
             return;
           }
           media_url = res.url;
-          media_name = res.fileName || file.name;
+          media_name = res.fileName || active.name;
           media_type =
             res.mediaType === "pdf"
               ? "pdf"
@@ -270,14 +381,17 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
         media_type = "none";
       }
 
-      const isOfficial =
-        kind === "study" && (user.is_admin || isOfficialRole);
+      setProgress(70);
+      setProgressLabel("Posting…");
+
+      const isOfficial = kind === "study" && (user.is_admin || isOfficialRole);
 
       if (demoMode) {
         const collegeId = user.college_id || catalog.colleges[0]?.id;
         if (!collegeId) {
           setError("Pick a college in onboarding before posting.");
           setBusy(false);
+          setProgress(0);
           return;
         }
         demoCreatePost({
@@ -302,10 +416,11 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           setError("Finish onboarding (college) before posting.");
           toast.error("Finish onboarding before posting");
           setBusy(false);
+          setProgress(0);
           return;
         }
         const supabase = createClient();
-        const { error: insertError } = await supabase.from("posts").insert({
+        const row = {
           author_id: user.id,
           college_id: user.college_id,
           class_id: kind === "study" ? studyClassId : user.class_id,
@@ -321,19 +436,73 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           media_name,
           media_type,
           is_official_verified: Boolean(isOfficial),
-        });
+        };
+        let { error: insertError } = await supabase.from("posts").insert(row);
+        if (
+          insertError &&
+          (insertError.code === "PGRST204" ||
+            /media_name|study_unit|academic_year|semester_id|schema cache|Could not find/i.test(
+              insertError.message
+            ))
+        ) {
+          const legacy = {
+            author_id: row.author_id,
+            college_id: row.college_id,
+            class_id: row.class_id,
+            section_id: row.section_id,
+            kind: row.kind,
+            study_type: row.study_type,
+            subject_id: row.subject_id,
+            caption: row.caption,
+            media_url: row.media_url,
+            media_type: row.media_type,
+            is_official_verified: row.is_official_verified,
+          };
+          const retry = await supabase.from("posts").insert(legacy);
+          insertError = retry.error;
+          if (!insertError) {
+            toast.error(
+              "Post shared — run supabase/patch_media_name.sql so filenames save."
+            );
+          }
+        }
         if (insertError) {
           setError(insertError.message);
           toast.error(insertError.message);
           setBusy(false);
+          setProgress(0);
           return;
         }
       }
 
+      if (kind === "study") {
+        saveComposerStudyPrefs({
+          classId: studyClassId,
+          semesterId: studySemesterId,
+          subjectId,
+          studyType,
+          academicYear,
+          studyUnit: studyUnit.trim(),
+        });
+        const sub = subjects.find((s) => s.id === subjectId);
+        if (sub) {
+          pushRecentSubject({
+            id: sub.id,
+            name: sub.name,
+            classId: studyClassId,
+            semesterId: studySemesterId,
+          });
+          setRecentSubjects(loadRecentSubjects());
+        }
+      }
+
+      setProgress(100);
+      setProgressLabel("Done");
       setCaption("");
       setFile(null);
+      setPrepared(null);
       setStudyUnit("");
-      setSubjectId("");
+      // keep class/semester/subject/year for next upload (faster)
       toast.success("Post shared");
       notifyFeedUpdated();
       onPosted?.();
@@ -343,11 +512,25 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       toast.error(msg);
     } finally {
       setBusy(false);
+      window.setTimeout(() => {
+        setProgress(0);
+        setProgressLabel("");
+      }, 400);
     }
   }
 
+  const tileHint = preparing
+    ? "Compressing…"
+    : prepared
+      ? prepared.mediaType === "pdf"
+        ? prepared.file.name
+        : "Ready to upload"
+      : file
+        ? file.name
+        : null;
+
   return (
-    <form className="space-y-3" onSubmit={submit}>
+    <form className="space-y-3" onSubmit={(e) => void submit(e)}>
       <textarea
         className="input min-h-[110px] resize-y py-3"
         placeholder="Share with your campus…"
@@ -368,9 +551,30 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       {kind === "study" ? (
         <div className="grid gap-2 rounded-lg border border-[var(--line)] bg-[#121212] p-3 sm:grid-cols-2">
           <p className="text-xs text-[var(--muted)] sm:col-span-2">
-            Study material — class, semester, subject, unit, year, and file are
-            required.
+            Last choices are remembered. Use recent subjects for a quick pick.
           </p>
+          {recentForClass.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 sm:col-span-2">
+              {recentForClass.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                    subjectId === r.id
+                      ? "border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]"
+                      : "border-[var(--line)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  }`}
+                  onClick={() => {
+                    setSubjectId(r.id);
+                    if (r.classId) setStudyClassId(r.classId);
+                    if (r.semesterId) setStudySemesterId(r.semesterId);
+                  }}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <select
             className="input"
             value={studyClassId}
@@ -456,8 +660,8 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       <div>
         <label className="mb-1 block text-xs text-[var(--muted)]">
           {kind === "study"
-            ? "Attach image or PDF (max 10 MB; large photos auto-compress)"
-            : "Optional image (jpeg/png/webp/gif, max 10 MB; auto-compress)"}
+            ? "Attach image or PDF (max 10 MB; compresses as soon as you pick)"
+            : "Optional image (max 10 MB; compresses on pick)"}
         </label>
         <UploadTile
           accept={
@@ -465,19 +669,34 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
               ? "image/jpeg,image/png,image/webp,image/gif,application/pdf"
               : "image/jpeg,image/png,image/webp,image/gif"
           }
-          onPick={(f) => setFile(f || null)}
+          onPick={(f) => void onPickFile(f)}
           previewUrl={previewUrl}
           label={kind === "study" ? "Add file" : "Add photo"}
-          disabled={busy}
+          disabled={busy || preparing}
           size={96}
+          hint={tileHint}
         />
-        {file && !previewUrl ? (
-          <p className="mt-1 truncate text-xs text-[var(--muted)]">{file.name}</p>
-        ) : null}
       </div>
       {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
-      <button className="btn btn-primary ml-auto" type="submit" disabled={busy}>
-        {busy ? "Sharing…" : "Share"}
+      {busy && progress > 0 ? (
+        <div className="space-y-1.5">
+          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+            <div
+              className="h-full bg-[var(--accent)] transition-all duration-200"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-[var(--muted)]">
+            {progressLabel} {Math.floor(progress)}%
+          </p>
+        </div>
+      ) : null}
+      <button
+        className="btn btn-primary ml-auto"
+        type="submit"
+        disabled={busy || preparing}
+      >
+        {busy ? "Sharing…" : preparing ? "Preparing…" : "Share"}
       </button>
     </form>
   );
