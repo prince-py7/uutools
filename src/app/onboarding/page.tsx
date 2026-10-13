@@ -73,13 +73,13 @@ export default function OnboardingPage() {
         setSections((secRes.data as Section[]) || []);
         if (!(colRes.data || []).length) {
           setError(
-            "No colleges are available yet. Please check back shortly or contact an admin."
+            "No colleges yet. Check back soon or contact an admin."
           );
         }
       } catch {
         if (!cancelled) {
           setError(
-            "Could not load colleges right now. Please try again in a moment."
+            "Could not load colleges. Try again shortly."
           );
         }
       } finally {
@@ -118,7 +118,7 @@ export default function OnboardingPage() {
       return;
     }
     if (!enrollmentId.trim()) {
-      setError("Enter your College ID / enrollment number");
+      setError("Enter your College ID");
       return;
     }
     if (!user) return;
@@ -152,7 +152,7 @@ export default function OnboardingPage() {
     setSaving(false);
     if (!updated) {
       setError(
-        "Could not save your profile. Please try again or contact support."
+        "Could not save. Try again or contact support."
       );
       return;
     }
@@ -164,10 +164,9 @@ export default function OnboardingPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="card w-full max-w-lg p-8">
-        <h1 className="text-2xl font-bold">Set up your campus profile</h1>
+        <h1 className="text-2xl font-bold">Campus setup</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Hi {user.display_name} — pick your college, class, semester, and
-          section so we can show classmate posts first.
+          Hi {user.display_name} — pick college, class, semester, and section.
         </p>
         {loadingDir ? (
           <LoadingInline label="Loading colleges…" />
@@ -220,7 +219,7 @@ export default function OnboardingPage() {
               </select>
               {collegeId && filteredClasses.length === 0 && (
                 <p className="mt-1 text-xs text-[var(--danger)]">
-                  No classes for this college yet. Ask an admin to add them.
+                  No classes yet. Ask an admin.
                 </p>
               )}
             </div>
@@ -247,7 +246,7 @@ export default function OnboardingPage() {
               </select>
               {classId && filteredSemesters.length === 0 && (
                 <p className="mt-1 text-xs text-[var(--danger)]">
-                  No semesters yet — ask an admin to add them for your class.
+                  No semesters yet. Ask an admin.
                 </p>
               )}
             </div>
@@ -271,14 +270,14 @@ export default function OnboardingPage() {
               </select>
               {semesterId && filteredSections.length === 0 && (
                 <p className="mt-1 text-xs text-[var(--danger)]">
-                  No sections for this semester yet.
+                  No sections yet.
                 </p>
               )}
             </div>
 
             <div>
               <label className="mb-1.5 block text-sm text-[var(--muted)]">
-                College ID / Enrollment no.
+                College ID
               </label>
               <input
                 className="input"
@@ -288,9 +287,8 @@ export default function OnboardingPage() {
                 required
               />
               <p className="mt-1 text-xs text-[var(--muted)]">
-                Your student ID from college (roll / enrollment number). For
-                United University we auto-import your photo from the university
-                API when you continue.
+                Your roll / enrollment number. Photo may auto-import for United
+                University.
               </p>
             </div>
             {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
@@ -298,7 +296,7 @@ export default function OnboardingPage() {
               className="btn btn-primary w-full"
               disabled={saving || loadingDir}
             >
-              {saving ? "Saving…" : "Continue to feed"}
+              {saving ? "Saving…" : "Continue"}
             </button>
           </form>
         )}

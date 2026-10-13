@@ -156,9 +156,7 @@ export default function AttendancePage() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Attendance</h1>
-            <p className="text-sm text-[var(--muted)]">
-              Enter a few numbers. Get a clear projection.
-            </p>
+            <p className="text-sm text-[var(--muted)]">Project your %</p>
           </div>
           <Link href="/tools/timetable" className="btn btn-ghost text-sm">
             Timetable
@@ -194,7 +192,7 @@ export default function AttendancePage() {
 
             <div className="space-y-2">
               <p className="text-xs font-medium text-[var(--muted)]">
-                If I take leave for the next…
+                Upcoming leave
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {LEAVE_OPTIONS.map((d) => (
@@ -236,9 +234,7 @@ export default function AttendancePage() {
             {advanced ? (
               <div className="space-y-4 border-t border-[var(--line)] pt-4">
                 <p className="text-xs text-[var(--muted)]">
-                  Optional. Dates use <b>DD/MM/YYYY</b>. Start date unlocks
-                  Saturday class mapping (open Saturdays follow Mon→Fri from your
-                  timetable).
+                  Optional · Dates: DD/MM/YYYY
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block space-y-1.5">
@@ -317,10 +313,8 @@ export default function AttendancePage() {
                   ) : null}
                 </div>
 
-                <p className="text-[11px] leading-relaxed text-[var(--muted)]">
-                  Built-in: 1st & 3rd Saturday off. Other Saturdays follow
-                  Mon→Tue→Wed→Thu→Fri from semester start. <b>Library</b> & 
-                  <b>Lunch</b> = no class.
+                <p className="text-[11px] text-[var(--muted)]">
+                  1st &amp; 3rd Sat off · Library / Lunch = free
                 </p>
               </div>
             ) : null}
@@ -339,11 +333,11 @@ export default function AttendancePage() {
 
             {slots.length === 0 ? (
               <p className="text-center text-xs text-[var(--muted)]">
-                Tip: save your 
+                Add a{" "}
                 <Link href="/tools/timetable" className="underline">
                   timetable
-                </Link> 
-                for better projections.
+                </Link>{" "}
+                for better results
               </p>
             ) : null}
           </section>
@@ -426,12 +420,12 @@ export default function AttendancePage() {
               <div>
                 <h2 className="text-base font-semibold">By subject</h2>
                 <p className="text-xs text-[var(--muted)]">
-                  Share of your timetable · Library & Lunch excluded
+                  From your timetable · Library & Lunch skipped
                 </p>
               </div>
               {projection.subjects.length === 0 ? (
                 <p className="text-sm text-[var(--muted)]">
-                  No lecture subjects in timetable yet.
+                  No subjects in timetable yet.
                 </p>
               ) : (
                 <div className="overflow-x-auto">

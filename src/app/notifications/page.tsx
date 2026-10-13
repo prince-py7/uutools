@@ -121,7 +121,7 @@ function NotificationsInner({ userId }: { userId: string }) {
         <div>
           <h1 className="text-2xl font-bold">Notifications</h1>
           <p className="text-sm text-[var(--muted)]">
-            Class announcements and friend requests
+            Announcements and friend requests
           </p>
         </div>
         {unread > 0 ? (
@@ -136,7 +136,7 @@ function NotificationsInner({ userId }: { userId: string }) {
           <div className="min-w-0">
             <p className="text-sm font-medium">Phone alerts</p>
             <p className="text-xs text-[var(--muted)]">
-              Get announcements and friend requests even when the app is closed
+              Alerts when the app is closed
             </p>
           </div>
           <button
@@ -155,9 +155,9 @@ function NotificationsInner({ userId }: { userId: string }) {
       ) : items.length === 0 ? (
         <div className="card space-y-2 p-8 text-center">
           <Bell className="mx-auto text-[var(--muted)]" size={28} />
-          <p className="font-medium">You are all caught up</p>
+          <p className="font-medium">You&apos;re all caught up</p>
           <p className="text-sm text-[var(--muted)]">
-            Class announcements and friend requests will show up here.
+            New alerts will show here.
           </p>
           <Link href="/home" className="btn btn-ghost mt-2 inline-flex">
             Back to home

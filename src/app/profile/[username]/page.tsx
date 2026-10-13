@@ -419,7 +419,7 @@ export default function ProfilePage() {
               )}
               {!profile.enrollment_id && isSelf && (
                 <p className="mt-1 text-sm text-[var(--muted)]">
-                  No College ID yet — add it in Edit profile.
+                  No College ID yet. Add it in Edit profile.
                 </p>
               )}
               {profile.bio ? (
@@ -427,7 +427,7 @@ export default function ProfilePage() {
               ) : (
                 isSelf && (
                   <p className="mt-3 text-sm text-[var(--muted)]">
-                    No bio yet — add one in Edit profile.
+                    No bio yet. Add one in Edit profile.
                   </p>
                 )
               )}

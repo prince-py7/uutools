@@ -532,7 +532,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       {kind === "study" ? (
         <div className="grid gap-2 rounded-lg border border-[var(--line)] bg-[#121212] p-3 sm:grid-cols-2">
           <p className="text-xs text-[var(--muted)] sm:col-span-2">
-            Last choices are remembered. Use recent subjects for a quick pick.
+            Recent subjects
           </p>
           {recentForClass.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 sm:col-span-2">
@@ -618,7 +618,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
           </select>
           <input
             className="input"
-            placeholder="Unit * (e.g. Unit 1)"
+            placeholder="Unit * (e.g. 1)"
             value={studyUnit}
             onChange={(e) => setStudyUnit(e.target.value)}
             required
@@ -629,7 +629,7 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
             onChange={(e) => setAcademicYear(e.target.value)}
             required
           >
-            <option value="">Academic year given *</option>
+            <option value="">Year *</option>
             {yearOptions.map((y) => (
               <option key={y} value={y}>
                 {y}
@@ -641,8 +641,8 @@ export function Composer({ onPosted }: { onPosted?: () => void }) {
       <div>
         <label className="mb-1 block text-xs text-[var(--muted)]">
           {kind === "study"
-            ? "Attach image or PDF (max 10 MB; compresses as soon as you pick)"
-            : "Optional image (max 10 MB; compresses on pick)"}
+            ? "Image or PDF · max 10 MB"
+            : "Image · max 10 MB"}
         </label>
         <UploadTile
           accept={

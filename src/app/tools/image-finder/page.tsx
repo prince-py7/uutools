@@ -141,10 +141,10 @@ export default function ImageFinderPage() {
     <AppShell>
       <div className="mx-auto max-w-md px-3 py-6 md:px-0">
         <h1 className="mb-1 text-center text-2xl font-bold">
-          UUID to Profile Finder
+          Image Finder
         </h1>
         <p className="mb-6 text-center text-sm text-[var(--muted)]">
-          Campus tool · UNITIANS
+          Find a campus ID photo by UUID
         </p>
 
         <form className="card space-y-3 p-5" onSubmit={onSubmit}>
@@ -153,11 +153,11 @@ export default function ImageFinderPage() {
             className="input"
             value={uuid}
             onChange={(e) => setUuid(e.target.value)}
-            placeholder="Enter UUID"
+            placeholder="Paste UUID"
             required
           />
           <button className="btn btn-primary w-full" disabled={loading}>
-            Enter
+            Find
           </button>
         </form>
 

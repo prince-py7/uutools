@@ -330,7 +330,7 @@ export function StoriesRail() {
             />
             <input
               className="input mb-3"
-              placeholder="Caption (optional)"
+              placeholder="Caption"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
             />

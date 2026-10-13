@@ -65,15 +65,14 @@ export default function MessagesInboxPage() {
       <div className="mx-auto flex max-w-xl flex-col gap-3 px-3 pt-3 md:px-4">
         <h1 className="text-xl font-semibold">Messages</h1>
         <p className="text-xs text-[var(--muted)]">
-          Private chats with friends. Group chats are coming soon.
+          Chats with friends
         </p>
         <div className="card divide-y divide-[var(--line)]">
           {loading ? (
             <LoadingInline label="Loading messages…" />
           ) : inbox.length === 0 ? (
             <p className="p-5 text-sm text-[var(--muted)]">
-              No conversations yet. Accept a friend request, then tap Message on
-              their profile.
+              No chats yet. Accept a friend request, then tap Message.
             </p>
           ) : (
             inbox.map(({ conversation, peer, lastMessage, unreadCount }) => (

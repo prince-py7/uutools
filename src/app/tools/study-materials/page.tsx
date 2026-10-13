@@ -266,8 +266,7 @@ export default function StudyMaterialsPage() {
           <div>
             <h1 className="text-2xl font-bold">Study Materials</h1>
             <p className="text-sm text-[var(--muted)]">
-              Find notes by class, semester, subject, unit, and year. Your
-              filters stay saved on this device.
+              Filter notes by class and subject
             </p>
           </div>
         </header>
@@ -334,7 +333,7 @@ export default function StudyMaterialsPage() {
             </select>
             <input
               className="input"
-              placeholder="Unit (e.g. Unit 2)"
+              placeholder="Unit (e.g. 2)"
               value={prefs.studyUnit}
               onChange={(e) => patch({ studyUnit: e.target.value })}
             />
@@ -357,7 +356,7 @@ export default function StudyMaterialsPage() {
               checked={prefs.verifiedOnly}
               onChange={(e) => patch({ verifiedOnly: e.target.checked })}
             />
-            Verified / popular only
+            Verified only
           </label>
           <div className="flex flex-wrap gap-2">
             <button
@@ -366,7 +365,7 @@ export default function StudyMaterialsPage() {
               disabled={loading}
               onClick={() => void runSearch()}
             >
-              {loading ? "Searching…" : "Find materials"}
+              {loading ? "Searching…" : "Search"}
             </button>
             <button
               type="button"
@@ -380,11 +379,11 @@ export default function StudyMaterialsPage() {
                 setDemoPosts([]);
               }}
             >
-              Reset filters
+              Reset
             </button>
           </div>
           <p className="text-[11px] text-[var(--muted)]">
-            Filters auto-save locally so you don’t re-select every time.
+            Filters are saved on this device.
           </p>
         </section>
 
@@ -392,12 +391,12 @@ export default function StudyMaterialsPage() {
           {loading ? <LoadingInline label="Loading study posts…" /> : null}
           {!loading && searched && demoMode && demoPosts.length === 0 ? (
             <div className="card p-6 text-center text-sm text-[var(--muted)]">
-              No study materials match these filters.
+              No matches for these filters.
             </div>
           ) : null}
           {!loading && searched && !demoMode && items.length === 0 ? (
             <div className="card p-6 text-center text-sm text-[var(--muted)]">
-              No study materials match these filters.
+              No matches for these filters.
             </div>
           ) : null}
           {demoMode

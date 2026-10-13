@@ -322,7 +322,7 @@ export function FriendRequestsPanel({ onClose }: { onClose?: () => void }) {
         {tab === "friends" &&
           (friendIds.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
-              No friends yet. Accept requests or send one from a profile.
+              No friends yet. Accept a request or send one from a profile.
             </p>
           ) : (
             friendIds.map((fid) => {

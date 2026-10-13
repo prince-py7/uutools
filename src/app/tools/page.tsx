@@ -22,31 +22,31 @@ const BASE_TOOLS = [
   {
     href: "/tools/image-finder",
     title: "Image Finder",
-    blurb: "Find and download campus images",
+    blurb: "Look up a campus ID photo",
     icon: ImageIcon,
   },
   {
     href: "/tools/attendance",
     title: "Attendance",
-    blurb: "Project % from your timetable",
+    blurb: "Project your %",
     icon: Calculator,
   },
   {
     href: "/tools/timetable",
     title: "Timetable",
-    blurb: "Your weekly class grid",
+    blurb: "Weekly class grid",
     icon: CalendarDays,
   },
   {
     href: "/tools/favourites",
     title: "Favourites",
-    blurb: "Posts you saved",
+    blurb: "Saved posts",
     icon: Star,
   },
   {
     href: "/tools/study-materials",
     title: "Study Materials",
-    blurb: "Find notes by class, semester, subject & year",
+    blurb: "Notes by class and subject",
     icon: BookOpen,
   },
 ];
@@ -75,8 +75,8 @@ export default function ToolsPage() {
       ? [
           {
             href: "/tools/announcements",
-            title: "Class announcements",
-            blurb: "Message the whole class",
+            title: "Announcements",
+            blurb: "Message your class",
             icon: Bell,
           },
         ]
@@ -97,7 +97,7 @@ export default function ToolsPage() {
         <div>
           <h1 className="text-2xl font-bold">Tools</h1>
           <p className="text-sm text-[var(--muted)]">
-            Campus utilities in one place
+            Campus helpers
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

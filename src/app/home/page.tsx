@@ -390,7 +390,7 @@ function HomePageInner() {
           {demoMode ? (
             showEmpty ? (
               <div className="card p-8 text-center text-[var(--muted)]">
-                No posts match these filters yet.
+                No posts match these filters.
               </div>
             ) : (
               renderCards(demoShown, false)
@@ -399,7 +399,7 @@ function HomePageInner() {
             <SkeletonRows rows={3} />
           ) : showEmpty ? (
             <div className="card p-8 text-center text-[var(--muted)]">
-              No posts yet — tap + to share the first one.
+              No posts yet. Tap + to share.
             </div>
           ) : (
             renderCards(liveItems, true)

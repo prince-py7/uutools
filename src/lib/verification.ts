@@ -20,7 +20,7 @@ export function canSendVerification(
     if (elapsed < VERIFICATION_THROTTLE_MS) {
       return {
         ok: false,
-        error: "Please wait before requesting another verification email",
+        error: "Wait a bit before requesting another email",
         retryAfterMs: VERIFICATION_THROTTLE_MS - elapsed,
       };
     }
@@ -36,5 +36,5 @@ export function hasFullAccess(_state?: VerificationState): boolean {
 
 export function verificationReminder(state: VerificationState): string | null {
   if (state.email_verified) return null;
-  return "Verify your email when you can — you already have full access.";
+  return "Verify your email when you can. You already have full access.";
 }
